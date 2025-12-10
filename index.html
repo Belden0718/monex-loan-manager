@@ -98,6 +98,13 @@
             </div>
           </div>
           <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">繳息機制</label>
+            <select id="roundingType" class="w-full border rounded-lg p-2.5 bg-white outline-none">
+              <option value="normal">正常制</option>
+              <option value="round">取整數制 (百位)</option>
+            </select>
+          </div>
+          <div>
             <label class="block text-xs font-medium text-slate-500 mb-1">約定繳息時間</label>
             <div id="monthlyInput_new">
               <input type="number" id="payDayDate" placeholder="每月幾號 (1-31)" min="1" max="31" class="w-full border rounded-lg p-2.5 outline-none">
@@ -111,6 +118,10 @@
               <option value="6">每週六</option>
               <option value="0">每週日</option>
             </select>
+          </div>
+          <div class="lg:col-span-2">
+            <label class="block text-xs font-medium text-slate-500 mb-1">備註</label>
+            <input type="text" id="notes" placeholder="備註資訊（選填）" class="w-full border rounded-lg p-2.5 outline-none">
           </div>
           <div class="flex items-end">
             <button onclick="addLoan()" class="w-full bg-indigo-600 text-white font-bold py-2.5 px-4 rounded-lg hover:bg-indigo-700 transition shadow-lg shadow-indigo-200">
@@ -204,6 +215,13 @@
           </select>
         </div>
         <div class="col-span-2">
+          <label class="text-xs text-slate-500">繳息機制</label>
+          <select id="editRoundingType" class="w-full border rounded p-2 bg-white">
+            <option value="normal">正常制</option>
+            <option value="round">取整數制 (百位)</option>
+          </select>
+        </div>
+        <div class="col-span-2">
           <label class="text-xs text-slate-500">約定繳息時間</label>
           <div id="monthlyInput_edit">
             <input type="number" id="editPayDayDate" placeholder="每月幾號 (1-31)" min="1" max="31" class="w-full border rounded p-2">
@@ -217,6 +235,10 @@
             <option value="6">每週六</option>
             <option value="0">每週日</option>
           </select>
+        </div>
+        <div class="col-span-2">
+          <label class="text-xs text-slate-500">備註</label>
+          <input type="text" id="editNotes" placeholder="備註資訊（選填）" class="w-full border rounded p-2">
         </div>
       </div>
       <div class="mt-6 flex gap-3">
@@ -379,6 +401,9 @@
       const rate = document.getElementById('interestRate').value;
       const type = document.getElementById('interestType').value;
       const payDay = type === '月' ? document.getElementById('payDayDate').value : document.getElementById('payDayWeek_new').value;
+      const roundingType = document.getElementById('roundingType').value;
+      const notes = document.getElementById('notes').value;
+      
       if (!borrower || !amount || !loanDate) return alert("請填寫必要欄位");
       
       const newLoan = {
@@ -389,6 +414,8 @@
         rate,
         rateType: type,
         payDay,
+        roundingType: roundingType || 'normal',
+        notes: notes || '',
         repayments: [],
         interestPayments: []
       };
@@ -396,8 +423,16 @@
       // 直接推送到 Firebase
       loansRef.child(newLoan.id).set(newLoan);
       
+      // 清空表單，恢復預設值
       document.getElementById('borrower').value = '';
       document.getElementById('amount').value = '';
+      document.getElementById('loanDate').valueAsDate = new Date();
+      document.getElementById('interestRate').value = '';
+      document.getElementById('interestType').value = '月';
+      document.getElementById('payDayDate').value = '';
+      document.getElementById('roundingType').value = 'normal';
+      document.getElementById('notes').value = '';
+      togglePayDayInput('new'); // 確保顯示正確的輸入框
     }
 
     function deleteLoan(id) {
@@ -415,6 +450,8 @@
       document.getElementById('editLoanDate').value = loan.loanDate;
       document.getElementById('editRate').value = loan.rate;
       document.getElementById('editRateType').value = loan.rateType;
+      document.getElementById('editRoundingType').value = loan.roundingType || 'normal';
+      document.getElementById('editNotes').value = loan.notes || '';
       togglePayDayInput('edit');
       if (loan.rateType === '月') {
         document.getElementById('editPayDayDate').value = loan.payDay;
@@ -434,6 +471,8 @@
       loan.loanDate = document.getElementById('editLoanDate').value;
       loan.rate = document.getElementById('editRate').value;
       loan.rateType = document.getElementById('editRateType').value;
+      loan.roundingType = document.getElementById('editRoundingType').value;
+      loan.notes = document.getElementById('editNotes').value;
       loan.payDay = loan.rateType === '月' ? document.getElementById('editPayDayDate').value : document.getElementById('editPayDayWeek').value;
       
       loansRef.child(id).set(loan);
@@ -457,7 +496,15 @@
         titleEl.textContent = `📈 收利息 (${loan.borrower})`;
         titleEl.className = "text-xl font-bold text-amber-600 mb-4";
         if(loan.originalAmount && loan.rate) {
-          const calcInterest = Math.round(loan.originalAmount * (loan.rate / 100));
+          let calcInterest = loan.originalAmount * (loan.rate / 100);
+          
+          // 如果是取整數制，無條件進位到百位
+          if (loan.roundingType === 'round') {
+            calcInterest = Math.ceil(calcInterest / 100) * 100;
+          } else {
+            calcInterest = Math.round(calcInterest);
+          }
+          
           amountEl.value = calcInterest;
           hintEl.classList.remove('hidden');
         } else {
@@ -530,6 +577,7 @@
                   ${isPaidOff ? '<span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded-full">已結清</span>' : ''}
                 </h3>
                 <div class="text-xs text-slate-400 mt-1">借款日: ${loan.loanDate}</div>
+                ${loan.notes ? `<div class="text-xs text-slate-500 mt-1">📝 ${loan.notes}</div>` : ''}
               </div>
               <div class="text-right flex flex-col items-end gap-1">
                 <div class="flex gap-1">
