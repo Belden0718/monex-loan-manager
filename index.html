@@ -252,7 +252,11 @@
       // 監聽資料變化（即時同步）
       loansRef.on('value', (snapshot) => {
         const data = snapshot.val();
-        loans = data ? Object.values(data) : [];
+        loans = data ? Object.values(data).map(loan => ({
+          ...loan,
+          repayments: loan.repayments || [],
+          interestPayments: loan.interestPayments || []
+        })) : [];
         renderLoans();
       });
     } catch (error) {
@@ -504,6 +508,10 @@
         return;
       }
       sortedLoans.forEach(loan => {
+        // 確保陣列存在
+        if (!loan.repayments) loan.repayments = [];
+        if (!loan.interestPayments) loan.interestPayments = [];
+        
         const totalRepaid = loan.repayments.reduce((sum, r) => sum + r.amount, 0);
         const remaining = loan.originalAmount - totalRepaid;
         const totalProfit = loan.interestPayments.reduce((sum, r) => sum + r.amount, 0);
