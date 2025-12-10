@@ -141,6 +141,9 @@
         <option value="active">🔄 進行中</option>
         <option value="completed">✅ 已結清</option>
       </select>
+      <div class="h-6 w-px bg-slate-300"></div>
+      <span class="text-sm font-bold text-slate-500">搜尋：</span>
+      <input type="text" id="searchInput" placeholder="輸入借款人姓名..." oninput="renderLoans()" class="bg-white border border-slate-300 text-sm rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 w-48">
     </div>
 
     <div id="loanList" class="space-y-6"></div>
@@ -307,18 +310,28 @@
     function getSortedLoans() {
       const criteria = document.getElementById('sortBy').value;
       const filterStatus = document.getElementById('filterStatus').value;
+      const searchKeyword = document.getElementById('searchInput').value.toLowerCase().trim();
       
       let filtered = loans;
+      
+      // 篩選狀態
       if (filterStatus === 'active') {
-        filtered = loans.filter(loan => {
+        filtered = filtered.filter(loan => {
           const totalRepaid = loan.repayments.reduce((sum, r) => sum + r.amount, 0);
           return loan.originalAmount - totalRepaid > 0;
         });
       } else if (filterStatus === 'completed') {
-        filtered = loans.filter(loan => {
+        filtered = filtered.filter(loan => {
           const totalRepaid = loan.repayments.reduce((sum, r) => sum + r.amount, 0);
           return loan.originalAmount - totalRepaid <= 0;
         });
+      }
+      
+      // 搜尋關鍵字
+      if (searchKeyword) {
+        filtered = filtered.filter(loan => 
+          loan.borrower.toLowerCase().includes(searchKeyword)
+        );
       }
       
       return [...filtered].sort((a, b) => {
