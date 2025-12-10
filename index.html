@@ -99,9 +99,8 @@
           </div>
           <div>
             <label class="block text-xs font-medium text-slate-500 mb-1">約定繳息時間</label>
-            <div id="monthlyInput_new" class="relative">
+            <div id="monthlyInput_new">
               <input type="number" id="payDayDate" placeholder="每月幾號 (1-31)" min="1" max="31" class="w-full border rounded-lg p-2.5 outline-none">
-              <span class="absolute right-3 top-2.5 text-gray-400 text-sm">號</span>
             </div>
             <select id="payDayWeek_new" class="hidden w-full border rounded-lg p-2.5 bg-white outline-none">
               <option value="1">每週一</option>
@@ -204,7 +203,7 @@
         <div class="col-span-2">
           <label class="text-xs text-slate-500">約定繳息時間</label>
           <div id="monthlyInput_edit">
-            <input type="number" id="editPayDayDate" placeholder="每月幾號" class="w-full border rounded p-2">
+            <input type="number" id="editPayDayDate" placeholder="每月幾號 (1-31)" min="1" max="31" class="w-full border rounded p-2">
           </div>
           <select id="editPayDayWeek" class="hidden w-full border rounded p-2 bg-white">
             <option value="1">每週一</option>
