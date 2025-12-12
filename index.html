@@ -460,4 +460,526 @@
       const accessSnapshot = await database.ref('access').once('value');
       const accessData = accessSnapshot.val() || {};
       
-      // 檢查是否為擁有者（第一個註冊的使用者
+      // 檢查是否為擁有者（第一個註冊的使用者）
+      if (!accessData.owner) {
+        // 第一個使用者自動成為擁有者
+        await database.ref('access/owner').set(user.email);
+        isOwner = true;
+      } else if (accessData.owner === user.email) {
+        isOwner = true;
+      } else {
+        // 檢查是否在授權名單中
+        const authorizedUsers = accessData.authorizedUsers || [];
+        if (!authorizedUsers.includes(user.email)) {
+          alert('⚠️ 您沒有權限訪問此系統，請聯繫管理員授權。');
+          await auth.signOut();
+          return;
+        }
+        isOwner = false;
+      }
+      
+      // 權限檢查通過，初始化應用程式
+      initializeApp(user);
+    }
+
+    // 初始化應用程式
+    function initializeApp(user) {
+      loansRef = database.ref('loans');
+      accessRef = database.ref('access');
+      
+      // 顯示使用者資訊
+      document.getElementById('userAvatar').src = user.photoURL || 'https://via.placeholder.com/40';
+      document.getElementById('userName').textContent = user.displayName || user.email.split('@')[0];
+      document.getElementById('userRole').textContent = isOwner ? '擁有者' : '協作者';
+      document.getElementById('dropdownName').textContent = user.displayName || user.email.split('@')[0];
+      document.getElementById('dropdownEmail').textContent = user.email;
+      
+      // 只有擁有者可以看到權限管理按鈕
+      document.getElementById('accessControlBtn').style.display = isOwner ? 'flex' : 'none';
+      
+      // 顯示主應用程式
+      document.getElementById('loginContainer').style.display = 'none';
+      document.getElementById('appContainer').style.display = 'block';
+      
+      updateStatus('online');
+      
+      // 監聽資料變化
+      loansRef.on('value', (snapshot) => {
+        const data = snapshot.val();
+        loans = data ? Object.values(data).map(loan => ({
+          ...loan,
+          repayments: loan.repayments || [],
+          interestPayments: loan.interestPayments || []
+        })) : [];
+        renderLoans();
+      });
+    }
+
+    // 顯示登入畫面
+    function showLoginScreen() {
+      document.getElementById('loginContainer').style.display = 'flex';
+      document.getElementById('appContainer').style.display = 'none';
+    }
+
+    // 開啟權限管理對話框
+    async function openAccessControl() {
+      if (!isOwner) {
+        alert('只有擁有者可以管理權限');
+        return;
+      }
+      
+      const accessSnapshot = await accessRef.once('value');
+      const accessData = accessSnapshot.val() || {};
+      const authorizedUsers = accessData.authorizedUsers || [];
+      const owner = accessData.owner || '';
+      
+      const listEl = document.getElementById('authorizedUsersList');
+      listEl.innerHTML = '';
+      
+      // 顯示擁有者
+      listEl.innerHTML += `
+        <div class="flex items-center justify-between p-2 bg-indigo-50 rounded border border-indigo-200">
+          <div class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path>
+            </svg>
+            <div>
+              <div class="text-sm font-medium text-slate-800">${owner}</div>
+              <div class="text-xs text-indigo-600">擁有者</div>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      // 顯示授權使用者
+      if (authorizedUsers.length === 0) {
+        listEl.innerHTML += '<div class="text-sm text-slate-400 text-center py-4">尚未授權任何使用者</div>';
+      } else {
+        authorizedUsers.forEach(email => {
+          listEl.innerHTML += `
+            <div class="flex items-center justify-between p-2 bg-slate-50 rounded border border-slate-200">
+              <div class="text-sm text-slate-700">${email}</div>
+              <button onclick="removeAuthorizedUser('${email}')" class="text-red-500 hover:text-red-700">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                </svg>
+              </button>
+            </div>
+          `;
+        });
+      }
+      
+      document.getElementById('accessModal').showModal();
+    }
+
+    // 新增授權使用者
+    async function addAuthorizedUser() {
+      const email = document.getElementById('newUserEmail').value.trim().toLowerCase();
+      if (!email) {
+        alert('請輸入 Email 地址');
+        return;
+      }
+      
+      // 驗證 Email 格式
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        alert('請輸入有效的 Email 地址');
+        return;
+      }
+      
+      const accessSnapshot = await accessRef.once('value');
+      const accessData = accessSnapshot.val() || {};
+      const authorizedUsers = accessData.authorizedUsers || [];
+      const owner = accessData.owner || '';
+      
+      if (email === owner) {
+        alert('此使用者已是擁有者');
+        return;
+      }
+      
+      if (authorizedUsers.includes(email)) {
+        alert('此使用者已在授權名單中');
+        return;
+      }
+      
+      authorizedUsers.push(email);
+      await accessRef.child('authorizedUsers').set(authorizedUsers);
+      
+      document.getElementById('newUserEmail').value = '';
+      openAccessControl(); // 重新載入列表
+    }
+
+    function updateStatus(status) {
+      const badge = document.getElementById('statusBadge');
+      if (status === 'online') {
+        badge.textContent = '✅ 已連線';
+        badge.className = 'status-badge status-online';
+      } else {
+        badge.textContent = '❌ 離線';
+        badge.className = 'status-badge status-offline';
+      }
+    }
+
+    // ========== 應用程式邏輯 ==========
+    document.getElementById('loanDate').valueAsDate = new Date();
+    document.getElementById('modalDate').valueAsDate = new Date();
+    let loans = [];
+    let isDesc = true;
+
+    function togglePayDayInput(context) {
+      const type = document.getElementById(context === 'new' ? 'interestType' : 'editRateType').value;
+      const monthDiv = document.getElementById(context === 'new' ? 'monthlyInput_new' : 'monthlyInput_edit');
+      const weekSel = document.getElementById(context === 'new' ? 'payDayWeek_new' : 'editPayDayWeek');
+      if (type === '月') {
+        monthDiv.classList.remove('hidden');
+        weekSel.classList.add('hidden');
+      } else {
+        monthDiv.classList.add('hidden');
+        weekSel.classList.remove('hidden');
+      }
+    }
+
+    function toggleSortOrder() {
+      isDesc = !isDesc;
+      document.getElementById('sortIcon').textContent = isDesc ? '⬇️' : '⬆️';
+      document.getElementById('sortText').textContent = isDesc ? '降冪' : '升冪';
+      renderLoans();
+    }
+
+    function getSortedLoans() {
+      const criteria = document.getElementById('sortBy').value;
+      const filterStatus = document.getElementById('filterStatus').value;
+      const searchKeyword = document.getElementById('searchInput').value.toLowerCase().trim();
+      
+      let filtered = loans;
+      
+      // 篩選狀態
+      if (filterStatus === 'active') {
+        filtered = filtered.filter(loan => {
+          const totalRepaid = loan.repayments.reduce((sum, r) => sum + r.amount, 0);
+          return loan.originalAmount - totalRepaid > 0;
+        });
+      } else if (filterStatus === 'completed') {
+        filtered = filtered.filter(loan => {
+          const totalRepaid = loan.repayments.reduce((sum, r) => sum + r.amount, 0);
+          return loan.originalAmount - totalRepaid <= 0;
+        });
+      }
+      
+      // 搜尋關鍵字
+      if (searchKeyword) {
+        filtered = filtered.filter(loan => 
+          loan.borrower.toLowerCase().includes(searchKeyword)
+        );
+      }
+      
+      return [...filtered].sort((a, b) => {
+        let valA, valB;
+        if (criteria === 'amount') {
+          valA = a.originalAmount;
+          valB = b.originalAmount;
+        } else if (criteria === 'remaining') {
+          const remainingA = a.originalAmount - a.repayments.reduce((sum, r) => sum + r.amount, 0);
+          const remainingB = b.originalAmount - b.repayments.reduce((sum, r) => sum + r.amount, 0);
+          valA = remainingA;
+          valB = remainingB;
+        } else if (criteria === 'payDay') {
+          const getPayDayValue = (loan) => {
+            if (!loan.payDay) return 9999;
+            if (loan.rateType === '週') {
+              return loan.payDay == 0 ? 7 : parseInt(loan.payDay);
+            } else {
+              return parseInt(loan.payDay);
+            }
+          };
+          valA = getPayDayValue(a);
+          valB = getPayDayValue(b);
+        } else if (criteria === 'name') {
+          valA = a.borrower.toLowerCase();
+          valB = b.borrower.toLowerCase();
+        } else {
+          valA = new Date(a.loanDate).getTime();
+          valB = new Date(b.loanDate).getTime();
+        }
+        if (valA < valB) return isDesc ? 1 : -1;
+        if (valA > valB) return isDesc ? -1 : 1;
+        return 0;
+      });
+    }
+
+    function addLoan() {
+      const borrower = document.getElementById('borrower').value;
+      const amount = parseFloat(document.getElementById('amount').value);
+      const loanDate = document.getElementById('loanDate').value;
+      const rate = document.getElementById('interestRate').value;
+      const type = document.getElementById('interestType').value;
+      const payDay = type === '月' ? document.getElementById('payDayDate').value : document.getElementById('payDayWeek_new').value;
+      const roundingType = document.getElementById('roundingType').value;
+      const notes = document.getElementById('notes').value;
+      
+      if (!borrower || !amount || !loanDate) return alert("請填寫必要欄位");
+      
+      const newLoan = {
+        id: Date.now(),
+        borrower,
+        originalAmount: amount,
+        loanDate,
+        rate,
+        rateType: type,
+        payDay,
+        roundingType: roundingType || 'normal',
+        notes: notes || '',
+        repayments: [],
+        interestPayments: []
+      };
+      
+      // 直接推送到 Firebase
+      loansRef.child(newLoan.id).set(newLoan);
+      
+      // 清空表單，恢復預設值
+      document.getElementById('borrower').value = '';
+      document.getElementById('amount').value = '';
+      document.getElementById('loanDate').valueAsDate = new Date();
+      document.getElementById('interestRate').value = '';
+      document.getElementById('interestType').value = '月';
+      document.getElementById('payDayDate').value = '';
+      document.getElementById('roundingType').value = 'normal';
+      document.getElementById('notes').value = '';
+      togglePayDayInput('new');
+    }
+
+    function deleteLoan(id) {
+      if(confirm("確定刪除此紀錄？")) {
+        loansRef.child(id).remove();
+      }
+    }
+
+    function openEditModal(id) {
+      const loan = loans.find(l => l.id === id);
+      if(!loan) return;
+      document.getElementById('editId').value = id;
+      document.getElementById('editBorrower').value = loan.borrower;
+      document.getElementById('editAmount').value = loan.originalAmount;
+      document.getElementById('editLoanDate').value = loan.loanDate;
+      document.getElementById('editRate').value = loan.rate;
+      document.getElementById('editRateType').value = loan.rateType;
+      document.getElementById('editRoundingType').value = loan.roundingType || 'normal';
+      document.getElementById('editNotes').value = loan.notes || '';
+      togglePayDayInput('edit');
+      if (loan.rateType === '月') {
+        document.getElementById('editPayDayDate').value = loan.payDay;
+      } else {
+        document.getElementById('editPayDayWeek').value = loan.payDay;
+      }
+      document.getElementById('editModal').showModal();
+    }
+
+    function saveEdit() {
+      const id = parseInt(document.getElementById('editId').value);
+      const loan = loans.find(l => l.id === id);
+      if(!loan) return;
+      
+      loan.borrower = document.getElementById('editBorrower').value;
+      loan.originalAmount = parseFloat(document.getElementById('editAmount').value);
+      loan.loanDate = document.getElementById('editLoanDate').value;
+      loan.rate = document.getElementById('editRate').value;
+      loan.rateType = document.getElementById('editRateType').value;
+      loan.roundingType = document.getElementById('editRoundingType').value;
+      loan.notes = document.getElementById('editNotes').value;
+      loan.payDay = loan.rateType === '月' ? document.getElementById('editPayDayDate').value : document.getElementById('editPayDayWeek').value;
+      
+      loansRef.child(id).set(loan);
+      document.getElementById('editModal').close();
+    }
+
+    function openModal(type, id) {
+      const loan = loans.find(l => l.id === id);
+      document.getElementById('modalLoanId').value = id;
+      document.getElementById('modalType').value = type;
+      document.getElementById('modalDate').valueAsDate = new Date();
+      const titleEl = document.getElementById('modalTitle');
+      const amountEl = document.getElementById('modalAmount');
+      const hintEl = document.getElementById('autoCalcHint');
+      if (type === 'principal') {
+        titleEl.textContent = `💰 還本金 (${loan.borrower})`;
+        titleEl.className = "text-xl font-bold text-emerald-600 mb-4";
+        amountEl.value = '';
+        hintEl.classList.add('hidden');
+      } else {
+        titleEl.textContent = `📈 收利息 (${loan.borrower})`;
+        titleEl.className = "text-xl font-bold text-amber-600 mb-4";
+        if(loan.originalAmount && loan.rate) {
+          let calcInterest = loan.originalAmount * (loan.rate / 100);
+          
+          if (loan.roundingType === 'round') {
+            calcInterest = Math.ceil(calcInterest / 100) * 100;
+          } else {
+            calcInterest = Math.round(calcInterest);
+          }
+          
+          amountEl.value = calcInterest;
+          hintEl.classList.remove('hidden');
+        } else {
+          amountEl.value = '';
+          hintEl.classList.add('hidden');
+        }
+      }
+      document.getElementById('actionModal').showModal();
+    }
+
+    function confirmTransaction() {
+      const id = parseInt(document.getElementById('modalLoanId').value);
+      const type = document.getElementById('modalType').value;
+      const date = document.getElementById('modalDate').value;
+      const amount = parseFloat(document.getElementById('modalAmount').value);
+      if (!amount || amount <= 0) return alert("金額錯誤");
+      
+      const loan = loans.find(l => l.id === id);
+      const record = { amount, date };
+      
+      if (type === 'principal') loan.repayments.push(record);
+      else loan.interestPayments.push(record);
+      
+      const dateSorter = (a, b) => new Date(b.date) - new Date(a.date);
+      loan.repayments.sort(dateSorter);
+      loan.interestPayments.sort(dateSorter);
+      
+      loansRef.child(id).set(loan);
+      document.getElementById('actionModal').close();
+    }
+
+    function checkIsDueToday(loan) {
+      if (!loan.payDay) return false;
+      const today = new Date();
+      return loan.rateType === '月' ? today.getDate() == loan.payDay : today.getDay() == loan.payDay;
+    }
+
+    function getWeekName(num) {
+      return ['日', '一', '二', '三', '四', '五', '六'][num];
+    }
+
+    function renderLoans() {
+      const container = document.getElementById('loanList');
+      container.innerHTML = '';
+      const sortedLoans = getSortedLoans();
+      if (sortedLoans.length === 0) {
+        container.innerHTML = '<div class="text-center text-slate-400 py-10">尚無紀錄</div>';
+        return;
+      }
+      sortedLoans.forEach(loan => {
+        if (!loan.repayments) loan.repayments = [];
+        if (!loan.interestPayments) loan.interestPayments = [];
+        
+        const totalRepaid = loan.repayments.reduce((sum, r) => sum + r.amount, 0);
+        const remaining = loan.originalAmount - totalRepaid;
+        const totalProfit = loan.interestPayments.reduce((sum, r) => sum + r.amount, 0);
+        const isPaidOff = remaining <= 0;
+        const isDue = checkIsDueToday(loan);
+        let scheduleText = '';
+        if (loan.payDay) {
+          scheduleText = loan.rateType === '月' ? `每月 ${loan.payDay} 號` : `每週${getWeekName(loan.payDay)}`;
+        }
+        const html = `
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative group hover:shadow-md transition">
+            <div class="flex justify-between items-start bg-slate-50 border-b border-slate-100 p-4">
+              <div>
+                <h3 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                  ${loan.borrower}
+                  ${isPaidOff ? '<span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded-full">已結清</span>' : ''}
+                </h3>
+                <div class="text-xs text-slate-400 mt-1">借款日: ${loan.loanDate}</div>
+                ${loan.notes ? `<div class="text-xs text-slate-500 mt-1">📝 ${loan.notes}</div>` : ''}
+              </div>
+              <div class="text-right flex flex-col items-end gap-1">
+                <div class="flex gap-1">
+                  <button onclick="openEditModal(${loan.id})" class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="編輯合約">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                  </button>
+                  <button onclick="deleteLoan(${loan.id})" class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded" title="刪除合約">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                  </button>
+                </div>
+                <span class="text-lg font-bold text-slate-600">${loan.originalAmount.toLocaleString()}</span>
+              </div>
+            </div>
+            ${isDue && !isPaidOff ? `
+              <div class="bg-red-50 px-4 py-2 flex justify-between items-center border-b border-red-100">
+                <div class="flex items-center gap-2 text-red-600 font-bold text-sm">
+                  <span class="relative flex h-3 w-3">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                  </span>
+                  今天該繳息囉！
+                </div>
+                <button onclick="openModal('interest', ${loan.id})" class="text-xs bg-red-600 text-white px-3 py-1 rounded shadow hover:bg-red-700">收息</button>
+              </div>
+            ` : ''}
+            <div class="p-4">
+              <div class="grid grid-cols-2 gap-4 mb-4">
+                <div class="bg-slate-50 p-3 rounded border border-slate-100">
+                  <div class="text-xs text-slate-500">剩餘本金</div>
+                  <div class="text-xl font-bold ${isPaidOff ? 'text-emerald-500' : 'text-slate-800'}">${remaining.toLocaleString()}</div>
+                </div>
+                <div class="bg-amber-50 p-3 rounded border border-amber-100 relative">
+                  <div class="text-xs text-amber-600">總獲利</div>
+                  <div class="text-xl font-bold text-amber-600">+${totalProfit.toLocaleString()}</div>
+                  <div class="text-xs text-amber-400 mt-1 border-t border-amber-200 pt-1 flex justify-between">
+                    <span>${loan.rate}% (${loan.rateType})</span>
+                    <span>${scheduleText}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="flex gap-2 mb-3">
+                ${!isPaidOff ? `
+                  <button onclick="openModal('principal', ${loan.id})" class="flex-1 bg-emerald-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 shadow-sm transition">
+                    還本金
+                  </button>
+                ` : ''}
+                <button onclick="openModal('interest', ${loan.id})" class="flex-1 bg-amber-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-amber-600 shadow-sm transition">
+                  收利息
+                </button>
+              </div>
+              <details class="group/detail">
+                <summary class="flex justify-center items-center cursor-pointer text-sm text-slate-400 hover:text-indigo-500 py-1 select-none">
+                  <span>查看詳細交易紀錄</span>
+                </summary>
+                <div class="mt-2 grid grid-cols-2 gap-2 text-sm bg-slate-50 p-2 rounded max-h-40 overflow-y-auto">
+                  <div>
+                    <div class="font-bold text-slate-600 mb-1 sticky top-0 bg-slate-50">還本紀錄</div>
+                    ${loan.repayments.length ? loan.repayments.map(r => `
+                      <div class="flex justify-between text-slate-500 border-b border-slate-100 py-0.5"><span>${r.date}</span><span>-${r.amount}</span></div>
+                    `).join('') : '<span class="text-slate-300">無</span>'}
+                  </div>
+                  <div>
+                    <div class="font-bold text-slate-600 mb-1 sticky top-0 bg-slate-50">獲利紀錄</div>
+                    ${loan.interestPayments.length ? loan.interestPayments.map(r => `
+                      <div class="flex justify-between text-amber-600 border-b border-amber-100 py-0.5"><span>${r.date}</span><span>+${r.amount}</span></div>
+                    `).join('') : '<span class="text-slate-300">無</span>'}
+                  </div>
+                </div>
+              </details>
+            </div>
+          </div>
+        `;
+        container.innerHTML += html;
+      });
+    }
+  </script>
+</body>
+</html>
+
+    // 移除授權使用者
+    async function removeAuthorizedUser(email) {
+      if (!confirm(`確定要移除 ${email} 的訪問權限嗎？`)) {
+        return;
+      }
+      
+      const accessSnapshot = await accessRef.once('value');
+      const accessData = accessSnapshot.val() || {};
+      let authorizedUsers = accessData.authorizedUsers || [];
+      
+      authorizedUsers = authorizedUsers.filter(e => e !== email);
+      await accessRef.child('authorizedUsers').set(authorizedUsers);
+      
+      openAccessControl(); // 重新載入列表
+    }
