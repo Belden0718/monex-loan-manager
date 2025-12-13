@@ -582,6 +582,8 @@
     async function signInWithGoogle() {
       const provider = new firebase.auth.GoogleAuthProvider();
       try {
+        // 設定持久化登入狀態
+        await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
         await auth.signInWithPopup(provider);
       } catch (error) {
         console.error('登入失敗:', error);
@@ -1120,9 +1122,6 @@
         container.innerHTML += html;
       });
     }
-  </script>
-</body>
-</html>
 
     // 移除授權使用者
     async function removeAuthorizedUser(email) {
@@ -1139,3 +1138,6 @@
       
       openAccessControl(); // 重新載入列表
     }
+  </script>
+</body>
+</html>
