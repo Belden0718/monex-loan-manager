@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monex 診斷頁面</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+      color: white;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 20px;
+      padding: 30px;
+      color: #333;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 {
+      color: #4f46e5;
+      margin-bottom: 20px;
+      font-size: 24px;
+    }
+    .test {
+      background: #f3f4f6;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 10px;
+      border-left: 4px solid #9ca3af;
+    }
+    .test.pass {
+      background: #d1fae5;
+      border-left-color: #10b981;
+    }
+    .test.fail {
+      background: #fee2e2;
+      border-left-color: #ef4444;
+    }
+    .test strong {
+      display: block;
+      margin-bottom: 5px;
+    }
+    button {
+      background: #4f46e5;
+      color: white;
+      border: none;
+      padding: 15px 30px;
+      border-radius: 10px;
+      font-size: 16px;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 20px;
+      font-weight: bold;
+    }
+    button:active {
+      background: #4338ca;
+    }
+    .info {
+      background: #dbeafe;
+      padding: 15px;
+      border-radius: 10px;
+      margin-top: 20px;
+      font-size: 14px;
+    }
+    .code {
+      background: #1f2937;
+      color: #10b981;
+      padding: 10px;
+      border-radius: 5px;
+      font-family: monospace;
+      font-size: 12px;
+      overflow-x: auto;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 Monex 系統診斷</h1>
+    <p style="margin-bottom: 20px; color: #6b7280;">正在檢測你的設備和瀏覽器...</p>
+    
+    <div id="tests"></div>
+    
+    <button onclick="runTests()">🔄 重新檢測</button>
+    <button onclick="clearAndGo()" style="background: #10b981;">🧹 清除資料並前往主頁</button>
+    
+    <div class="info">
+      <strong>📱 設備資訊</strong>
+      <div class="code" id="deviceInfo"></div>
+    </div>
+  </div>
+
+  <script>
+    const tests = [];
+    
+    function addTest(name, pass, message) {
+      tests.push({ name, pass, message });
+    }
+    
+    function runTests() {
+      tests.length = 0;
+      const container = document.getElementById('tests');
+      
+      // 測試 1: JavaScript 基本功能
+      try {
+        const test = true;
+        addTest('JavaScript 執行', true, 'JavaScript 可以正常運行');
+      } catch (e) {
+        addTest('JavaScript 執行', false, '錯誤: ' + e.message);
+      }
+      
+      // 測試 2: LocalStorage
+      try {
+        localStorage.setItem('test', 'ok');
+        const result = localStorage.getItem('test');
+        localStorage.removeItem('test');
+        addTest('LocalStorage', result === 'ok', result === 'ok' ? '可以儲存資料' : '無法儲存資料');
+      } catch (e) {
+        addTest('LocalStorage', false, '錯誤: ' + e.message);
+      }
+      
+      // 測試 3: Fetch API
+      try {
+        addTest('Fetch API', typeof fetch === 'function', typeof fetch === 'function' ? '支援網路請求' : '不支援 Fetch');
+      } catch (e) {
+        addTest('Fetch API', false, '錯誤: ' + e.message);
+      }
+      
+      // 測試 4: Service Worker
+      addTest('Service Worker', 'serviceWorker' in navigator, 
+        'serviceWorker' in navigator ? '支援 PWA 功能' : '不支援 Service Worker');
+      
+      // 測試 5: 檢查是否有舊的 Service Worker
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+          const hasOldSW = registrations.length > 0;
+          addTest('舊版 Service Worker', !hasOldSW, 
+            hasOldSW ? `⚠️ 發現 ${registrations.length} 個舊的 Service Worker，這可能導致白屏！` : '沒有舊版快取');
+          displayTests();
+        });
+      }
+      
+      // 測試 6: 檢查 Firebase 腳本
+      setTimeout(() => {
+        addTest('Firebase 腳本', typeof firebase !== 'undefined', 
+          typeof firebase !== 'undefined' ? 'Firebase 已載入' : '⚠️ Firebase 載入失敗');
+        displayTests();
+      }, 2000);
+      
+      displayTests();
+      
+      // 顯示設備資訊
+      document.getElementById('deviceInfo').innerHTML = `
+User Agent: ${navigator.userAgent}
+<br>螢幕: ${screen.width}x${screen.height}
+<br>視窗: ${window.innerWidth}x${window.innerHeight}
+<br>瀏覽器: ${getBrowserName()}
+<br>PWA 模式: ${window.matchMedia('(display-mode: standalone)').matches ? '是' : '否'}
+      `;
+    }
+    
+    function displayTests() {
+      const container = document.getElementById('tests');
+      container.innerHTML = tests.map(test => `
+        <div class="test ${test.pass ? 'pass' : 'fail'}">
+          <strong>${test.pass ? '✅' : '❌'} ${test.name}</strong>
+          ${test.message}
+        </div>
+      `).join('');
+    }
+    
+    function getBrowserName() {
+      const ua = navigator.userAgent;
+      if (ua.includes('Chrome')) return 'Chrome';
+      if (ua.includes('Safari')) return 'Safari';
+      if (ua.includes('Firefox')) return 'Firefox';
+      if (ua.includes('Edge')) return 'Edge';
+      return '未知';
+    }
+    
+    async function clearAndGo() {
+      if (confirm('將清除所有本地資料、Service Worker 和快取，確定繼續？')) {
+        try {
+          // 清除 Storage
+          localStorage.clear();
+          sessionStorage.clear();
+          
+          // 清除 Service Worker
+          if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            for (let registration of registrations) {
+              await registration.unregister();
+            }
+          }
+          
+          // 清除 Cache
+          if ('caches' in window) {
+            const cacheNames = await caches.keys();
+            await Promise.all(cacheNames.map(name => caches.delete(name)));
+          }
+          
+          alert('✅ 清除完成！即將前往主頁...');
+          window.location.href = './index.html';
+        } catch (e) {
+          alert('❌ 清除失敗: ' + e.message);
+        }
+      }
+    }
+    
+    // 自動執行
+    runTests();
+  </script>
+</body>
+</html>
