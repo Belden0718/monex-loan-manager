@@ -535,7 +535,20 @@
   </dialog>
 
   <script>
-    // ========== Service Worker 註冊 ==========
+    // ========== 強制清除舊版 Service Worker ==========
+    if ('serviceWorker' in navigator) {
+      // 立即取消註冊所有舊的 Service Worker
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+          registration.unregister();
+          console.log('已移除舊的 Service Worker');
+        }
+      });
+    }
+
+    // ========== Service Worker 註冊（暫時停用）==========
+    // 等系統穩定後再啟用
+    /*
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js')
@@ -547,6 +560,7 @@
           });
       });
     }
+    */
 
     // ========== PWA 安裝功能 ==========
     let deferredPrompt;
@@ -593,6 +607,40 @@
       measurementId: "G-LT6QRW0550"
     };
 
+    // 檢查 Firebase 是否載入
+    function waitForFirebase(callback, maxAttempts = 10) {
+      let attempts = 0;
+      const checkFirebase = setInterval(() => {
+        attempts++;
+        if (typeof firebase !== 'undefined') {
+          clearInterval(checkFirebase);
+          callback(true);
+        } else if (attempts >= maxAttempts) {
+          clearInterval(checkFirebase);
+          callback(false);
+        }
+      }, 500);
+    }
+
+    // 等待 Firebase 載入後再初始化
+    waitForFirebase((success) => {
+      if (!success) {
+        alert('⚠️ Firebase 載入失敗，請檢查網路連線並重新整理頁面');
+        document.getElementById('loadingScreen').innerHTML = `
+          <div class="text-center">
+            <div class="text-white text-xl font-bold mb-4">❌ 載入失敗</div>
+            <div class="text-white mb-4">無法連接到 Firebase</div>
+            <button onclick="location.reload()" class="bg-white text-indigo-600 px-6 py-3 rounded-lg font-bold">
+              重新整理
+            </button>
+          </div>
+        `;
+        return;
+      }
+      
+      initializeFirebase();
+    });
+
     // 初始化 Firebase
     let database;
     let loansRef;
@@ -602,10 +650,11 @@
     let isOwner = false;
     let authInitialized = false;
     
-    try {
-      firebase.initializeApp(firebaseConfig);
-      database = firebase.database();
-      auth = firebase.auth();
+    function initializeFirebase() {
+      try {
+        firebase.initializeApp(firebaseConfig);
+        database = firebase.database();
+        auth = firebase.auth();
       
       // 監聽登入狀態
       auth.onAuthStateChanged(async (user) => {
@@ -629,10 +678,12 @@
         }
       });
       
-    } catch (error) {
-      console.error('Firebase 初始化失敗:', error);
-      alert('⚠️ 無法連接到雲端資料庫，請檢查 Firebase 設定');
-      document.getElementById('loadingScreen').classList.add('hide');
+            
+      } catch (error) {
+        console.error('Firebase 初始化失敗:', error);
+        alert('⚠️ 無法連接到雲端資料庫，請檢查 Firebase 設定');
+        document.getElementById('loadingScreen').classList.add('hide');
+      }
     }
 
     // Google 登入
