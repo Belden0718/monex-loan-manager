@@ -263,6 +263,9 @@
         使用 Google 帳號登入
       </button>
       <p class="text-xs text-slate-400 text-center mt-4">登入即表示您同意使用條款</p>
+      <button onclick="clearAllData()" class="mt-3 text-xs text-slate-500 hover:text-slate-700 underline w-full">
+        🔧 清除所有資料並重新開始
+      </button>
     </div>
   </div>
 
@@ -652,64 +655,108 @@
       }
     }
 
+    // 清除所有資料（緊急重置）
+    async function clearAllData() {
+      if (confirm('⚠️ 這會清除所有本地資料並登出，確定要繼續嗎？')) {
+        try {
+          // 登出
+          await auth.signOut();
+          // 清除本地儲存
+          localStorage.clear();
+          sessionStorage.clear();
+          // 清除 Service Worker 快取
+          if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            for (let registration of registrations) {
+              await registration.unregister();
+            }
+          }
+          // 清除所有快取
+          if ('caches' in window) {
+            const cacheNames = await caches.keys();
+            await Promise.all(cacheNames.map(name => caches.delete(name)));
+          }
+          alert('✅ 已清除所有資料，頁面將重新載入');
+          window.location.reload();
+        } catch (error) {
+          console.error('清除失敗:', error);
+          alert('清除失敗，請手動清除瀏覽器快取後重新整理');
+        }
+      }
+    }
+
     // 檢查使用者權限
     async function checkUserAccess(user) {
-      const accessSnapshot = await database.ref('access').once('value');
-      const accessData = accessSnapshot.val() || {};
-      
-      // 檢查是否為擁有者（第一個註冊的使用者）
-      if (!accessData.owner) {
-        // 第一個使用者自動成為擁有者
-        await database.ref('access/owner').set(user.email);
-        isOwner = true;
-      } else if (accessData.owner === user.email) {
-        isOwner = true;
-      } else {
-        // 檢查是否在授權名單中
-        const authorizedUsers = accessData.authorizedUsers || [];
-        if (!authorizedUsers.includes(user.email)) {
-          alert('⚠️ 您沒有權限訪問此系統，請聯繫管理員授權。');
-          await auth.signOut();
-          return;
+      try {
+        const accessSnapshot = await database.ref('access').once('value');
+        const accessData = accessSnapshot.val() || {};
+        
+        // 檢查是否為擁有者（第一個註冊的使用者）
+        if (!accessData.owner) {
+          // 第一個使用者自動成為擁有者
+          await database.ref('access/owner').set(user.email);
+          isOwner = true;
+        } else if (accessData.owner === user.email) {
+          isOwner = true;
+        } else {
+          // 檢查是否在授權名單中
+          const authorizedUsers = accessData.authorizedUsers || [];
+          if (!authorizedUsers.includes(user.email)) {
+            alert('⚠️ 您沒有權限訪問此系統，請聯繫管理員授權。');
+            await auth.signOut();
+            return;
+          }
+          isOwner = false;
         }
-        isOwner = false;
+        
+        // 權限檢查通過，初始化應用程式
+        initializeApp(user);
+      } catch (error) {
+        console.error('權限檢查失敗:', error);
+        alert('⚠️ 無法驗證權限，請重新登入');
+        await auth.signOut();
+        showLoginScreen();
       }
-      
-      // 權限檢查通過，初始化應用程式
-      initializeApp(user);
     }
 
     // 初始化應用程式
     function initializeApp(user) {
-      loansRef = database.ref('loans');
-      accessRef = database.ref('access');
-      
-      // 顯示使用者資訊
-      document.getElementById('userAvatar').src = user.photoURL || 'https://via.placeholder.com/40';
-      document.getElementById('userName').textContent = user.displayName || user.email.split('@')[0];
-      document.getElementById('userRole').textContent = isOwner ? '擁有者' : '協作者';
-      document.getElementById('dropdownName').textContent = user.displayName || user.email.split('@')[0];
-      document.getElementById('dropdownEmail').textContent = user.email;
-      
-      // 只有擁有者可以看到權限管理按鈕
-      document.getElementById('accessControlBtn').style.display = isOwner ? 'flex' : 'none';
-      
-      // 顯示主應用程式
-      document.getElementById('loginContainer').classList.remove('show');
-      document.getElementById('appContainer').style.display = 'block';
-      
-      updateStatus('online');
-      
-      // 監聽資料變化
-      loansRef.on('value', (snapshot) => {
-        const data = snapshot.val();
-        loans = data ? Object.values(data).map(loan => ({
-          ...loan,
-          repayments: loan.repayments || [],
-          interestPayments: loan.interestPayments || []
-        })) : [];
-        renderLoans();
-      });
+      try {
+        loansRef = database.ref('loans');
+        accessRef = database.ref('access');
+        
+        // 顯示使用者資訊
+        document.getElementById('userAvatar').src = user.photoURL || 'https://via.placeholder.com/40';
+        document.getElementById('userName').textContent = user.displayName || user.email.split('@')[0];
+        document.getElementById('userRole').textContent = isOwner ? '擁有者' : '協作者';
+        document.getElementById('dropdownName').textContent = user.displayName || user.email.split('@')[0];
+        document.getElementById('dropdownEmail').textContent = user.email;
+        
+        // 只有擁有者可以看到權限管理按鈕
+        document.getElementById('accessControlBtn').style.display = isOwner ? 'flex' : 'none';
+        
+        // 顯示主應用程式
+        document.getElementById('loginContainer').classList.remove('show');
+        document.getElementById('appContainer').style.display = 'block';
+        
+        updateStatus('online');
+        
+        // 監聽資料變化
+        loansRef.on('value', (snapshot) => {
+          const data = snapshot.val();
+          loans = data ? Object.values(data).map(loan => ({
+            ...loan,
+            repayments: loan.repayments || [],
+            interestPayments: loan.interestPayments || []
+          })) : [];
+          renderLoans();
+        });
+      } catch (error) {
+        console.error('應用程式初始化失敗:', error);
+        alert('⚠️ 系統初始化失敗，請重新整理頁面');
+        auth.signOut();
+        showLoginScreen();
+      }
     }
 
     // 顯示登入畫面
@@ -1111,7 +1158,7 @@
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                   </button>
                 </div>
-                <span class="text-lg font-bold text-slate-600">${loan.originalAmount.toLocaleString()}</span>
+                <span class="text-lg font-bold text-slate-600">$${loan.originalAmount.toLocaleString()}</span>
               </div>
             </div>
             ${isDue && !isPaidOff ? `
