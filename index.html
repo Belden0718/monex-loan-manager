@@ -14,35 +14,9 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <title>Monex | 智慧借款管理</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  
-  <!-- Firebase 主要 CDN -->
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js" onerror="loadFirebaseBackup()"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js" onerror="loadFirebaseBackup()"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js" onerror="loadFirebaseBackup()"></script>
-  
-  <!-- Firebase 備援載入 -->
-  <script>
-    let firebaseBackupLoaded = false;
-    function loadFirebaseBackup() {
-      if (firebaseBackupLoaded) return;
-      firebaseBackupLoaded = true;
-      console.log('主要 CDN 失敗，使用備援 CDN...');
-      
-      const scripts = [
-        'https://unpkg.com/firebase@10.7.1/firebase-app-compat.js',
-        'https://unpkg.com/firebase@10.7.1/firebase-database-compat.js',
-        'https://unpkg.com/firebase@10.7.1/firebase-auth-compat.js'
-      ];
-      
-      scripts.forEach(src => {
-        const script = document.createElement('script');
-        script.src = src;
-        script.async = false;
-        document.head.appendChild(script);
-      });
-    }
-  </script>
-  
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -91,13 +65,6 @@
       z-index: 100;
       padding: 1rem;
       overflow-y: auto;
-      opacity: 0;
-      visibility: hidden;
-      transition: opacity 0.3s ease, visibility 0.3s ease;
-    }
-    .login-container.show {
-      opacity: 1;
-      visibility: visible;
     }
     .login-box {
       background: white;
@@ -209,44 +176,9 @@
     .install-prompt.show {
       display: block;
     }
-    /* 載入畫面 */
-    .loading-screen {
-      position: fixed;
-      inset: 0;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 200;
-      transition: opacity 0.3s ease;
-    }
-    .loading-screen.hide {
-      opacity: 0;
-      pointer-events: none;
-    }
-    .spinner {
-      width: 50px;
-      height: 50px;
-      border: 4px solid rgba(255, 255, 255, 0.3);
-      border-top-color: white;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
   </style>
 </head>
 <body class="p-4 md:p-8 text-slate-800 pb-24">
-  <!-- 載入畫面 -->
-  <div id="loadingScreen" class="loading-screen">
-    <div class="text-center">
-      <div class="spinner mx-auto mb-4"></div>
-      <div class="text-white text-lg font-medium" id="loadingText">正在載入 Firebase...</div>
-      <div class="text-white text-sm opacity-75 mt-2" id="loadingDetail">請稍候</div>
-    </div>
-  </div>
-
   <!-- PWA 安裝提示 -->
   <div id="installPrompt" class="install-prompt">
     <div class="flex items-center gap-3">
@@ -290,9 +222,6 @@
         使用 Google 帳號登入
       </button>
       <p class="text-xs text-slate-400 text-center mt-4">登入即表示您同意使用條款</p>
-      <button onclick="clearAllData()" class="mt-3 text-xs text-slate-500 hover:text-slate-700 underline w-full">
-        🔧 清除所有資料並重新開始
-      </button>
     </div>
   </div>
 
@@ -562,20 +491,7 @@
   </dialog>
 
   <script>
-    // ========== 強制清除舊版 Service Worker ==========
-    if ('serviceWorker' in navigator) {
-      // 立即取消註冊所有舊的 Service Worker
-      navigator.serviceWorker.getRegistrations().then(function(registrations) {
-        for(let registration of registrations) {
-          registration.unregister();
-          console.log('已移除舊的 Service Worker');
-        }
-      });
-    }
-
-    // ========== Service Worker 註冊（暫時停用）==========
-    // 等系統穩定後再啟用
-    /*
+    // ========== Service Worker 註冊 ==========
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js')
@@ -587,7 +503,6 @@
           });
       });
     }
-    */
 
     // ========== PWA 安裝功能 ==========
     let deferredPrompt;
@@ -634,86 +549,6 @@
       measurementId: "G-LT6QRW0550"
     };
 
-    // 檢查 Firebase 是否載入
-    function waitForFirebase(callback, maxAttempts = 20) {
-      let attempts = 0;
-      const loadingText = document.getElementById('loadingText');
-      const loadingDetail = document.getElementById('loadingDetail');
-      
-      const checkFirebase = setInterval(() => {
-        attempts++;
-        
-        if (loadingDetail) {
-          loadingDetail.textContent = `嘗試 ${attempts}/${maxAttempts}...`;
-        }
-        
-        if (typeof firebase !== 'undefined') {
-          clearInterval(checkFirebase);
-          if (loadingText) loadingText.textContent = '連線成功！';
-          callback(true);
-        } else if (attempts >= maxAttempts) {
-          clearInterval(checkFirebase);
-          if (loadingText) loadingText.textContent = '載入失敗';
-          callback(false);
-        }
-      }, 1000);
-    }
-
-    // 等待 Firebase 載入後再初始化
-    waitForFirebase((success) => {
-      if (!success) {
-        document.getElementById('loadingScreen').innerHTML = `
-          <div class="text-center px-4">
-            <div class="text-white text-xl font-bold mb-4">❌ Firebase 載入失敗</div>
-            <div class="text-white mb-4 text-sm">可能原因：網路連線問題或 CDN 被封鎖</div>
-            <div class="flex flex-col gap-3">
-              <button onclick="location.reload()" class="bg-white text-indigo-600 px-6 py-3 rounded-lg font-bold">
-                🔄 重新整理
-              </button>
-              <button onclick="window.location.href='./diagnosis.html'" class="bg-amber-500 text-white px-6 py-3 rounded-lg font-bold">
-                🔍 診斷頁面
-              </button>
-              <button onclick="testNetwork()" class="bg-green-500 text-white px-6 py-3 rounded-lg font-bold">
-                📡 測試網路
-              </button>
-            </div>
-            <div id="networkTest" class="mt-4 text-white text-sm"></div>
-          </div>
-        `;
-        return;
-      }
-      
-      initializeFirebase();
-    });
-
-    // 網路測試功能
-    async function testNetwork() {
-      const testDiv = document.getElementById('networkTest');
-      testDiv.innerHTML = '測試中...';
-      
-      const tests = [
-        { name: 'Google CDN', url: 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js' },
-        { name: 'Unpkg CDN', url: 'https://unpkg.com/firebase@10.7.1/firebase-app-compat.js' },
-        { name: 'Tailwind CDN', url: 'https://cdn.tailwindcss.com' }
-      ];
-      
-      let results = '<div class="text-left bg-white bg-opacity-10 rounded p-3 mt-2">';
-      
-      for (let test of tests) {
-        try {
-          const start = Date.now();
-          const response = await fetch(test.url, { method: 'HEAD' });
-          const time = Date.now() - start;
-          results += `<div class="mb-1">✅ ${test.name}: ${time}ms</div>`;
-        } catch (e) {
-          results += `<div class="mb-1">❌ ${test.name}: 失敗</div>`;
-        }
-      }
-      
-      results += '</div>';
-      testDiv.innerHTML = results;
-    }
-
     // 初始化 Firebase
     let database;
     let loansRef;
@@ -721,13 +556,11 @@
     let auth;
     let currentUser = null;
     let isOwner = false;
-    let authInitialized = false;
     
-    function initializeFirebase() {
-      try {
-        firebase.initializeApp(firebaseConfig);
-        database = firebase.database();
-        auth = firebase.auth();
+    try {
+      firebase.initializeApp(firebaseConfig);
+      database = firebase.database();
+      auth = firebase.auth();
       
       // 監聽登入狀態
       auth.onAuthStateChanged(async (user) => {
@@ -736,27 +569,13 @@
           await checkUserAccess(user);
         } else {
           currentUser = null;
-          // 確保已初始化才顯示登入畫面
-          if (authInitialized) {
-            showLoginScreen();
-          }
-        }
-        
-        // 標記已初始化，隱藏載入畫面
-        if (!authInitialized) {
-          authInitialized = true;
-          setTimeout(() => {
-            document.getElementById('loadingScreen').classList.add('hide');
-          }, 300);
+          showLoginScreen();
         }
       });
       
-            
-      } catch (error) {
-        console.error('Firebase 初始化失敗:', error);
-        alert('⚠️ 無法連接到雲端資料庫，請檢查 Firebase 設定');
-        document.getElementById('loadingScreen').classList.add('hide');
-      }
+    } catch (error) {
+      console.error('Firebase 初始化失敗:', error);
+      alert('⚠️ 無法連接到雲端資料庫，請檢查 Firebase 設定');
     }
 
     // Google 登入
@@ -779,113 +598,69 @@
       }
     }
 
-    // 清除所有資料（緊急重置）
-    async function clearAllData() {
-      if (confirm('⚠️ 這會清除所有本地資料並登出，確定要繼續嗎？')) {
-        try {
-          // 登出
-          await auth.signOut();
-          // 清除本地儲存
-          localStorage.clear();
-          sessionStorage.clear();
-          // 清除 Service Worker 快取
-          if ('serviceWorker' in navigator) {
-            const registrations = await navigator.serviceWorker.getRegistrations();
-            for (let registration of registrations) {
-              await registration.unregister();
-            }
-          }
-          // 清除所有快取
-          if ('caches' in window) {
-            const cacheNames = await caches.keys();
-            await Promise.all(cacheNames.map(name => caches.delete(name)));
-          }
-          alert('✅ 已清除所有資料，頁面將重新載入');
-          window.location.reload();
-        } catch (error) {
-          console.error('清除失敗:', error);
-          alert('清除失敗，請手動清除瀏覽器快取後重新整理');
-        }
-      }
-    }
-
     // 檢查使用者權限
     async function checkUserAccess(user) {
-      try {
-        const accessSnapshot = await database.ref('access').once('value');
-        const accessData = accessSnapshot.val() || {};
-        
-        // 檢查是否為擁有者（第一個註冊的使用者）
-        if (!accessData.owner) {
-          // 第一個使用者自動成為擁有者
-          await database.ref('access/owner').set(user.email);
-          isOwner = true;
-        } else if (accessData.owner === user.email) {
-          isOwner = true;
-        } else {
-          // 檢查是否在授權名單中
-          const authorizedUsers = accessData.authorizedUsers || [];
-          if (!authorizedUsers.includes(user.email)) {
-            alert('⚠️ 您沒有權限訪問此系統，請聯繫管理員授權。');
-            await auth.signOut();
-            return;
-          }
-          isOwner = false;
+      const accessSnapshot = await database.ref('access').once('value');
+      const accessData = accessSnapshot.val() || {};
+      
+      // 檢查是否為擁有者（第一個註冊的使用者）
+      if (!accessData.owner) {
+        // 第一個使用者自動成為擁有者
+        await database.ref('access/owner').set(user.email);
+        isOwner = true;
+      } else if (accessData.owner === user.email) {
+        isOwner = true;
+      } else {
+        // 檢查是否在授權名單中
+        const authorizedUsers = accessData.authorizedUsers || [];
+        if (!authorizedUsers.includes(user.email)) {
+          alert('⚠️ 您沒有權限訪問此系統，請聯繫管理員授權。');
+          await auth.signOut();
+          return;
         }
-        
-        // 權限檢查通過，初始化應用程式
-        initializeApp(user);
-      } catch (error) {
-        console.error('權限檢查失敗:', error);
-        alert('⚠️ 無法驗證權限，請重新登入');
-        await auth.signOut();
-        showLoginScreen();
+        isOwner = false;
       }
+      
+      // 權限檢查通過，初始化應用程式
+      initializeApp(user);
     }
 
     // 初始化應用程式
     function initializeApp(user) {
-      try {
-        loansRef = database.ref('loans');
-        accessRef = database.ref('access');
-        
-        // 顯示使用者資訊
-        document.getElementById('userAvatar').src = user.photoURL || 'https://via.placeholder.com/40';
-        document.getElementById('userName').textContent = user.displayName || user.email.split('@')[0];
-        document.getElementById('userRole').textContent = isOwner ? '擁有者' : '協作者';
-        document.getElementById('dropdownName').textContent = user.displayName || user.email.split('@')[0];
-        document.getElementById('dropdownEmail').textContent = user.email;
-        
-        // 只有擁有者可以看到權限管理按鈕
-        document.getElementById('accessControlBtn').style.display = isOwner ? 'flex' : 'none';
-        
-        // 顯示主應用程式
-        document.getElementById('loginContainer').classList.remove('show');
-        document.getElementById('appContainer').style.display = 'block';
-        
-        updateStatus('online');
-        
-        // 監聽資料變化
-        loansRef.on('value', (snapshot) => {
-          const data = snapshot.val();
-          loans = data ? Object.values(data).map(loan => ({
-            ...loan,
-            repayments: loan.repayments || [],
-            interestPayments: loan.interestPayments || []
-          })) : [];
-          renderLoans();
-        });
-      } catch (error) {
-        console.error('應用程式初始化失敗:', error);
-        alert('⚠️ 系統初始化失敗，請重新整理頁面');
-        auth.signOut();
-        showLoginScreen();
-      }
+      loansRef = database.ref('loans');
+      accessRef = database.ref('access');
+      
+      // 顯示使用者資訊
+      document.getElementById('userAvatar').src = user.photoURL || 'https://via.placeholder.com/40';
+      document.getElementById('userName').textContent = user.displayName || user.email.split('@')[0];
+      document.getElementById('userRole').textContent = isOwner ? '擁有者' : '協作者';
+      document.getElementById('dropdownName').textContent = user.displayName || user.email.split('@')[0];
+      document.getElementById('dropdownEmail').textContent = user.email;
+      
+      // 只有擁有者可以看到權限管理按鈕
+      document.getElementById('accessControlBtn').style.display = isOwner ? 'flex' : 'none';
+      
+      // 顯示主應用程式
+      document.getElementById('loginContainer').style.display = 'none';
+      document.getElementById('appContainer').style.display = 'block';
+      
+      updateStatus('online');
+      
+      // 監聽資料變化
+      loansRef.on('value', (snapshot) => {
+        const data = snapshot.val();
+        loans = data ? Object.values(data).map(loan => ({
+          ...loan,
+          repayments: loan.repayments || [],
+          interestPayments: loan.interestPayments || []
+        })) : [];
+        renderLoans();
+      });
     }
 
     // 顯示登入畫面
     function showLoginScreen() {
-      document.getElementById('loginContainer').classList.add('show');
+      document.getElementById('loginContainer').style.display = 'flex';
       document.getElementById('appContainer').style.display = 'none';
     }
 
