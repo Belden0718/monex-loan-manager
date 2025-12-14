@@ -14,9 +14,35 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <title>Monex | 智慧借款管理</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  
+  <!-- Firebase 主要 CDN -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js" onerror="loadFirebaseBackup()"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js" onerror="loadFirebaseBackup()"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js" onerror="loadFirebaseBackup()"></script>
+  
+  <!-- Firebase 備援載入 -->
+  <script>
+    let firebaseBackupLoaded = false;
+    function loadFirebaseBackup() {
+      if (firebaseBackupLoaded) return;
+      firebaseBackupLoaded = true;
+      console.log('主要 CDN 失敗，使用備援 CDN...');
+      
+      const scripts = [
+        'https://unpkg.com/firebase@10.7.1/firebase-app-compat.js',
+        'https://unpkg.com/firebase@10.7.1/firebase-database-compat.js',
+        'https://unpkg.com/firebase@10.7.1/firebase-auth-compat.js'
+      ];
+      
+      scripts.forEach(src => {
+        const script = document.createElement('script');
+        script.src = src;
+        script.async = false;
+        document.head.appendChild(script);
+      });
+    }
+  </script>
+  
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -216,7 +242,8 @@
   <div id="loadingScreen" class="loading-screen">
     <div class="text-center">
       <div class="spinner mx-auto mb-4"></div>
-      <div class="text-white text-lg font-medium">載入中...</div>
+      <div class="text-white text-lg font-medium" id="loadingText">正在載入 Firebase...</div>
+      <div class="text-white text-sm opacity-75 mt-2" id="loadingDetail">請稍候</div>
     </div>
   </div>
 
@@ -608,31 +635,49 @@
     };
 
     // 檢查 Firebase 是否載入
-    function waitForFirebase(callback, maxAttempts = 10) {
+    function waitForFirebase(callback, maxAttempts = 20) {
       let attempts = 0;
+      const loadingText = document.getElementById('loadingText');
+      const loadingDetail = document.getElementById('loadingDetail');
+      
       const checkFirebase = setInterval(() => {
         attempts++;
+        
+        if (loadingDetail) {
+          loadingDetail.textContent = `嘗試 ${attempts}/${maxAttempts}...`;
+        }
+        
         if (typeof firebase !== 'undefined') {
           clearInterval(checkFirebase);
+          if (loadingText) loadingText.textContent = '連線成功！';
           callback(true);
         } else if (attempts >= maxAttempts) {
           clearInterval(checkFirebase);
+          if (loadingText) loadingText.textContent = '載入失敗';
           callback(false);
         }
-      }, 500);
+      }, 1000);
     }
 
     // 等待 Firebase 載入後再初始化
     waitForFirebase((success) => {
       if (!success) {
-        alert('⚠️ Firebase 載入失敗，請檢查網路連線並重新整理頁面');
         document.getElementById('loadingScreen').innerHTML = `
-          <div class="text-center">
-            <div class="text-white text-xl font-bold mb-4">❌ 載入失敗</div>
-            <div class="text-white mb-4">無法連接到 Firebase</div>
-            <button onclick="location.reload()" class="bg-white text-indigo-600 px-6 py-3 rounded-lg font-bold">
-              重新整理
-            </button>
+          <div class="text-center px-4">
+            <div class="text-white text-xl font-bold mb-4">❌ Firebase 載入失敗</div>
+            <div class="text-white mb-4 text-sm">可能原因：網路連線問題或 CDN 被封鎖</div>
+            <div class="flex flex-col gap-3">
+              <button onclick="location.reload()" class="bg-white text-indigo-600 px-6 py-3 rounded-lg font-bold">
+                🔄 重新整理
+              </button>
+              <button onclick="window.location.href='./diagnosis.html'" class="bg-amber-500 text-white px-6 py-3 rounded-lg font-bold">
+                🔍 診斷頁面
+              </button>
+              <button onclick="testNetwork()" class="bg-green-500 text-white px-6 py-3 rounded-lg font-bold">
+                📡 測試網路
+              </button>
+            </div>
+            <div id="networkTest" class="mt-4 text-white text-sm"></div>
           </div>
         `;
         return;
@@ -640,6 +685,34 @@
       
       initializeFirebase();
     });
+
+    // 網路測試功能
+    async function testNetwork() {
+      const testDiv = document.getElementById('networkTest');
+      testDiv.innerHTML = '測試中...';
+      
+      const tests = [
+        { name: 'Google CDN', url: 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js' },
+        { name: 'Unpkg CDN', url: 'https://unpkg.com/firebase@10.7.1/firebase-app-compat.js' },
+        { name: 'Tailwind CDN', url: 'https://cdn.tailwindcss.com' }
+      ];
+      
+      let results = '<div class="text-left bg-white bg-opacity-10 rounded p-3 mt-2">';
+      
+      for (let test of tests) {
+        try {
+          const start = Date.now();
+          const response = await fetch(test.url, { method: 'HEAD' });
+          const time = Date.now() - start;
+          results += `<div class="mb-1">✅ ${test.name}: ${time}ms</div>`;
+        } catch (e) {
+          results += `<div class="mb-1">❌ ${test.name}: 失敗</div>`;
+        }
+      }
+      
+      results += '</div>';
+      testDiv.innerHTML = results;
+    }
 
     // 初始化 Firebase
     let database;
