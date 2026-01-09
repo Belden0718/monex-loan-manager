@@ -634,31 +634,56 @@
       }
     }
 
-    // 檢查使用者權限
+    // 檢查使用者權限 (診斷與容錯版)
     async function checkUserAccess(user) {
-      const accessSnapshot = await database.ref('access').once('value');
-      const accessData = accessSnapshot.val() || {};
-      
-      // 檢查是否為擁有者（第一個註冊的使用者）
-      if (!accessData.owner) {
-        // 第一個使用者自動成為擁有者
-        await database.ref('access/owner').set(user.email);
-        isOwner = true;
-      } else if (accessData.owner === user.email) {
-        isOwner = true;
-      } else {
-        // 檢查是否在授權名單中
-        const authorizedUsers = accessData.authorizedUsers || [];
-        if (!authorizedUsers.includes(user.email)) {
-          alert('⚠️ 您沒有權限訪問此系統，請聯繫管理員授權。');
-          await auth.signOut();
-          return;
+      try {
+        console.log("🔄 正在嘗試讀取權限表...");
+        // 嘗試讀取 access 節點
+        const accessSnapshot = await database.ref('access').once('value');
+        const accessData = accessSnapshot.val() || {};
+        
+        console.log("✅ 權限表讀取成功:", accessData);
+
+        // 1. 檢查是否為擁有者 (資料庫完全沒 owner 時，第一個登入者自動獲得)
+        if (!accessData.owner) {
+          console.log("🐣 偵測到系統尚未初始化，正在將您設為擁有者...");
+          await database.ref('access/owner').set(user.email);
+          isOwner = true;
+        } else if (accessData.owner === user.email) {
+          console.log("👑 身分確認：擁有者 (甲方)");
+          isOwner = true;
+        } else {
+          // 2. 檢查是否在授權名單中
+          const authorizedUsers = accessData.authorizedUsers || [];
+          // 這裡使用 includes 檢查 Email
+          if (authorizedUsers.includes(user.email)) {
+            console.log("🤝 身分確認：授權協作者 (乙方)");
+            isOwner = false;
+          } else {
+            console.warn("🚫 權限不足：您的 Email 不在授權名單內");
+            alert(`⚠️ 權限拒絕\n\n您的帳號 (${user.email}) 尚未獲得授權。\n請聯繫管理員將您加入名單。`);
+            await auth.signOut();
+            return;
+          }
         }
-        isOwner = false;
+        
+        // 3. 權限檢查通過，進入主程式
+        console.log("🚀 權限檢查通過，啟動應用程式...");
+        initializeApp(user);
+
+      } catch (error) {
+        // 🔥 這裡會捕捉 Permission Denied 錯誤
+        console.error("❌ Firebase 讀取錯誤:", error);
+        
+        let errorMsg = "無法存取資料庫。";
+        if (error.code === 'PERMISSION_DENIED') {
+          errorMsg = "⚠️ 資料庫存取被拒 (Permission Denied)。\n這通常是 Firebase Rules 設定錯誤，請確認 access 節點允許讀取。";
+        }
+        
+        alert(`系統登入失敗\n\n訊息: ${errorMsg}\n\n詳細資訊: ${error.message}`);
+        // 失敗時強制登出，避免卡在半登入狀態
+        await auth.signOut();
       }
-      
-      // 權限檢查通過，初始化應用程式
-      initializeApp(user);
     }
 
     // 初始化應用程式
