@@ -1029,20 +1029,15 @@
       document.getElementById('editAmount').value = loan.originalAmount;
       document.getElementById('editLoanDate').value = loan.loanDate;
       document.getElementById('editRate').value = loan.rate;
-      document.getElementById('editRateType').value = loan.rateType;
-      document.getElementById('editRoundingType').value = loan.roundingType || 'normal';
-      
-      // 💡 新增：讀取並填入手續費與分潤比例
-      document.getElementById('editServiceFee').value = loan.serviceFee || 0;
       document.getElementById('editInvestorSplit').value = loan.investorSplit || 50;
-
+      document.getElementById('editServiceFee').value = loan.serviceFee || 0;
       document.getElementById('editNotes').value = loan.notes || '';
-      togglePayDayInput('edit');
-      if (loan.rateType === '月') {
-        document.getElementById('editPayDayDate').value = loan.payDay;
-      } else {
-        document.getElementById('editPayDayWeek').value = loan.payDay;
-      }
+      
+      // 💡 [新增] 載入法律文件狀態
+      document.getElementById('editHasNote').checked = loan.hasNote || false;
+      document.getElementById('editHasIdCopy').checked = loan.hasIdCopy || false;
+      document.getElementById('editHasRemitRecord').checked = loan.hasRemitRecord || false;
+
       document.getElementById('editModal').showModal();
     }
 
@@ -1055,19 +1050,17 @@
       loan.originalAmount = parseFloat(document.getElementById('editAmount').value);
       loan.loanDate = document.getElementById('editLoanDate').value;
       loan.rate = document.getElementById('editRate').value;
-      loan.rateType = document.getElementById('editRateType').value;
-      loan.roundingType = document.getElementById('editRoundingType').value;
-      
-      // 💡 新增：將修改後的手續費與分潤比例存入物件
-      loan.serviceFee = parseFloat(document.getElementById('editServiceFee').value) || 0;
       loan.investorSplit = parseFloat(document.getElementById('editInvestorSplit').value) || 50;
-      // 同步更新 partnerSplit (給系統備用計算)
       loan.partnerSplit = 100 - loan.investorSplit;
-
+      loan.serviceFee = parseFloat(document.getElementById('editServiceFee').value) || 0;
       loan.notes = document.getElementById('editNotes').value;
-      loan.payDay = loan.rateType === '月' ? document.getElementById('editPayDayDate').value : document.getElementById('editPayDayWeek').value;
+
+      // 💡 [新增] 讀取並儲存法律文件狀態
+      loan.hasNote = document.getElementById('editHasNote').checked;
+      loan.hasIdCopy = document.getElementById('editHasIdCopy').checked;
+      loan.hasRemitRecord = document.getElementById('editHasRemitRecord').checked;
       
-      // 寫回雲端資料庫
+      // 寫回雲端
       loansRef.child(id).set(loan);
       document.getElementById('editModal').close();
     }
