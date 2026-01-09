@@ -1082,28 +1082,53 @@ const newLoan = {
             if (!loan.repayments) loan.repayments = [];
             if (!loan.interestPayments) loan.interestPayments = [];
             
-            // --- 核心計算邏輯 (甲方風險自動折抵版) ---
+            // --- 1. 核心計算邏輯 (甲方風險自動折抵版) ---
+            // 計算客戶實際還給甲方的本金總額
             const totalRepaid = loan.repayments.reduce((sum, r) => sum + r.amount, 0);
             const remaining = loan.originalAmount - totalRepaid; 
     
+            // 總收益 = 累積已收利息 + 乙方預領利潤 (原手續費)
             const interestProfit = loan.interestPayments.reduce((sum, r) => sum + r.amount, 0);
             const totalGrossProfit = interestProfit + (parseFloat(loan.serviceFee) || 0);
             
+            // 理論分潤試算
             const mySplitRatio = parseFloat(loan.investorSplit) || 50; 
-            const myShare = Math.round(totalGrossProfit * (mySplitRatio / 100)); 
-            const friendShare = totalGrossProfit - myShare; 
+            const my理论Share = Math.round(totalGrossProfit * (mySplitRatio / 100)); 
+            const friend理论Share = totalGrossProfit - my理论Share; 
     
-            // 甲方實質拿回 = 客戶還的本金 + (乙方預領利潤中屬於甲方的份額)
+            // 🔥 甲方實質回收金額：客戶還的本金 + (乙方預領利潤中屬於甲方的份額)
             const myAdvanceProfitShare = (parseFloat(loan.serviceFee) || 0) * (mySplitRatio / 100);
             const totalRecoveredForA = totalRepaid + myAdvanceProfitShare;
+            
+            // 計算甲方本金回收進度百分比
             const recoveryProgress = Math.min(100, Math.round((totalRecoveredForA / loan.originalAmount) * 100));
     
-            // --- 動態進度條顏色邏輯 ---
-            let progressColor = 'bg-red-500'; // 初始紅色 (高風險)
+            // --- 2. 本次利息現金分配建議 (對沖邏輯) ---
+            // 算出該案子單期應收的利息 (本金 * 利率%)
+            const singleInterest = loan.originalAmount * (parseFloat(loan.rate) / 100);
+            
+            // 乙方超領金額 (他預領的金額 - 他在目前總利潤中應得的份額)
+            const bOverdrawn = (parseFloat(loan.serviceFee) || 0) - friend理论Share;
+    
+            let suggestA = 0;
+            let suggestB = 0;
+            if (bOverdrawn > 0) {
+                // 乙方超領中：這次利息優先補償甲方，直到補滿差額或利息用完
+                suggestA = Math.min(singleInterest, bOverdrawn + (singleInterest * (mySplitRatio / 100)));
+                suggestB = Math.max(0, singleInterest - suggestA);
+            } else {
+                // 雙方帳目平衡：按約定比例正常拆分
+                suggestA = singleInterest * (mySplitRatio / 100);
+                suggestB = singleInterest - suggestA;
+            }
+    
+            // --- 3. 動態視覺效果設定 ---
+            // 進度條顏色隨風險程度變化
+            let progressColor = 'bg-red-500'; // 低於 50%：紅色 (高風險)
             if (recoveryProgress >= 100) {
-              progressColor = 'bg-emerald-500'; // 滿額綠色 (安全)
+                progressColor = 'bg-emerald-500'; // 100%：綠色 (安全)
             } else if (recoveryProgress >= 50) {
-              progressColor = 'bg-amber-500'; // 過半橘色 (回收中)
+                progressColor = 'bg-amber-500'; // 50% 以上：橘色 (回收中)
             }
     
             const isPaidOff = remaining <= 0;
@@ -1125,20 +1150,20 @@ const newLoan = {
                       <button onclick="openEditModal(${loan.id})" class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="編輯合約">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                       </button>
-                      <button onclick="deleteLoan(${loan.id})" class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded" title="刪除合約">
+                      <button onclick="deleteLoan(${loan.id})" class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded" title="刪除紀錄">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                       </button>
                     </div>
-                    <span class="text-lg font-bold text-slate-600">${loan.originalAmount.toLocaleString()}</span>
+                    <span class="text-lg font-bold text-slate-600">$${loan.originalAmount.toLocaleString()}</span>
                   </div>
                 </div>
     
                 ${isDue && !isPaidOff ? `
                   <div class="bg-red-50 px-4 py-2 flex justify-between items-center border-b border-red-100">
                     <div class="flex items-center gap-2 text-red-600 font-bold text-sm">
-                      <span class="relative flex h-3 w-3">
+                      <span class="relative flex h-2 w-2">
                         <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                        <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                        <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                       </span>
                       今天該收利息囉！
                     </div>
@@ -1149,43 +1174,55 @@ const newLoan = {
                 <div class="p-4">
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     
-                    <div class="bg-slate-50 p-3 rounded border border-slate-100">
-                      <div class="flex justify-between items-center mb-1">
-                        <div class="text-xs text-slate-500 font-medium">剩餘本金 (客欠)</div>
-                        <div class="text-[10px] text-indigo-600 font-bold">甲方安全水位: ${recoveryProgress}%</div>
-                      </div>
-                      <div class="text-xl font-bold ${isPaidOff ? 'text-emerald-500' : 'text-slate-800'}">
-                        $${remaining.toLocaleString()}
+                    <div class="bg-slate-50 p-3 rounded border border-slate-100 flex flex-col justify-between">
+                      <div>
+                        <div class="flex justify-between items-center mb-1">
+                          <div class="text-xs text-slate-500 font-medium">剩餘本金 (客欠)</div>
+                          <div class="text-[10px] text-indigo-600 font-bold">甲方安全水位: ${recoveryProgress}%</div>
+                        </div>
+                        <div class="text-xl font-bold ${isPaidOff ? 'text-emerald-500' : 'text-slate-800'}">
+                          $${remaining.toLocaleString()}
+                        </div>
                       </div>
                       
                       <div class="mt-3">
                         <div class="flex justify-between text-[10px] mb-1">
-                          <span class="text-slate-400">實質已回本：$${totalRecoveredForA.toLocaleString()}</span>
+                          <span class="text-slate-400">實質已回本：$${Math.round(totalRecoveredForA).toLocaleString()}</span>
                           <span class="font-bold text-indigo-600">${recoveryProgress}%</span>
                         </div>
-                        <div class="w-full bg-slate-200 rounded-full h-2">
-                          <div class="${progressColor} h-2 rounded-full transition-all duration-500" style="width: ${recoveryProgress}%"></div>
+                        <div class="w-full bg-slate-200 rounded-full h-2.5">
+                          <div class="${progressColor} h-2.5 rounded-full transition-all duration-700" style="width: ${recoveryProgress}%"></div>
                         </div>
                       </div>
                     </div>
     
                     <div class="bg-amber-50 p-3 rounded border border-amber-100 flex flex-col justify-between">
                       <div>
-                        <div class="text-xs text-amber-600 font-bold mb-2">合夥分潤結算 (甲方比例 ${loan.investorSplit}%)</div>
-                        <div class="text-sm font-bold text-slate-700 flex justify-between py-0.5">
-                          <span>甲方(金主):</span>
-                          <span class="text-indigo-600">+${myShare.toLocaleString()}</span>
+                        <div class="text-xs text-amber-600 font-bold mb-2 flex justify-between">
+                          <span>損益結算 (50/50 拆)</span>
+                          <span>甲方比例 ${loan.investorSplit}%</span>
                         </div>
                         <div class="text-sm font-bold text-slate-700 flex justify-between py-0.5">
-                          <span>乙方(業務):</span>
-                          <span class="text-slate-500">+${friendShare.toLocaleString()}</span>
+                          <span>甲方(金主)應得:</span>
+                          <span class="text-indigo-600">+${my理论Share.toLocaleString()}</span>
+                        </div>
+                        <div class="text-sm font-bold text-slate-700 flex justify-between py-0.5">
+                          <span>乙方(業務)應得:</span>
+                          <span class="text-slate-500">+${friend理论Share.toLocaleString()}</span>
                         </div>
                       </div>
                       
-                      <div class="mt-2 border-t border-amber-200 pt-1">
-                        <div class="text-[10px] text-amber-600 font-medium flex justify-between">
-                          <span>乙方已預領利潤 (原手續費)：</span>
-                          <span>$${(parseFloat(loan.serviceFee) || 0).toLocaleString()}</span>
+                      <div class="mt-2 pt-2 border-t border-amber-200">
+                        <div class="text-[10px] font-bold ${bOverdrawn > 0 ? 'text-red-500' : 'text-emerald-600'} flex justify-between">
+                            <span>${bOverdrawn > 0 ? `⚠️ 乙方超領預支` : '✅ 帳目分配平衡'}</span>
+                            <span>${bOverdrawn > 0 ? `$${Math.round(bOverdrawn).toLocaleString()}` : ''}</span>
+                        </div>
+                        <div class="bg-white/60 p-2 rounded mt-1.5 border border-amber-100 shadow-sm">
+                            <div class="text-[9px] text-slate-500 mb-1 font-bold">下次利息現金分配建議：</div>
+                            <div class="flex justify-between text-[11px] font-bold">
+                                <span class="text-indigo-600">甲方實領：$${Math.round(suggestA).toLocaleString()}</span>
+                                <span class="text-slate-600">乙方實領：$${Math.round(suggestB).toLocaleString()}</span>
+                            </div>
                         </div>
                       </div>
                     </div>
@@ -1200,20 +1237,24 @@ const newLoan = {
     
                   <details class="group/detail">
                     <summary class="flex justify-center items-center cursor-pointer text-sm text-slate-400 hover:text-indigo-500 py-1 select-none">
-                      <span>查看詳細交易紀錄</span>
+                      <span>查看詳細交易明細</span>
                     </summary>
-                    <div class="mt-2 grid grid-cols-2 gap-2 text-sm bg-slate-50 p-2 rounded max-h-40 overflow-y-auto">
+                    <div class="mt-2 grid grid-cols-2 gap-2 text-sm bg-slate-50 p-2 rounded max-h-48 overflow-y-auto">
                       <div>
-                        <div class="font-bold text-slate-600 mb-1 sticky top-0 bg-slate-50">還本紀錄</div>
+                        <div class="font-bold text-slate-600 mb-1 sticky top-0 bg-slate-50 border-b border-slate-100">還本紀錄</div>
                         ${loan.repayments.length ? loan.repayments.map(r => `
-                          <div class="flex justify-between text-slate-500 border-b border-slate-100 py-0.5"><span>${r.date}</span><span>-${r.amount}</span></div>
-                        `).join('') : '<span class="text-slate-300">無</span>'}
+                          <div class="flex justify-between text-slate-500 border-b border-slate-50 py-1 text-[11px]">
+                            <span>${r.date}</span><span>-${r.amount.toLocaleString()}</span>
+                          </div>
+                        `).join('') : '<span class="text-slate-300 text-xs">暫無紀錄</span>'}
                       </div>
                       <div>
-                        <div class="font-bold text-slate-600 mb-1 sticky top-0 bg-slate-50">獲利紀錄</div>
+                        <div class="font-bold text-slate-600 mb-1 sticky top-0 bg-slate-50 border-b border-slate-100">獲利紀錄</div>
                         ${loan.interestPayments.length ? loan.interestPayments.map(r => `
-                          <div class="flex justify-between text-amber-600 border-b border-amber-100 py-0.5"><span>${r.date}</span><span>+${r.amount}</span></div>
-                        `).join('') : '<span class="text-slate-300">無</span>'}
+                          <div class="flex justify-between text-amber-600 border-b border-slate-50 py-1 text-[11px]">
+                            <span>${r.date}</span><span>+${r.amount.toLocaleString()}</span>
+                          </div>
+                        `).join('') : '<span class="text-slate-300 text-xs">暫無紀錄</span>'}
                       </div>
                     </div>
                   </details>
