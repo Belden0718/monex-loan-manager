@@ -877,18 +877,32 @@
       
       if (!borrower || !amount || !loanDate) return alert("請填寫必要欄位");
       
-      const newLoan = {
+const newLoan = {
         id: Date.now(),
         borrower,
         originalAmount: amount,
+        
+        // --- 新增：財務透明化欄位 ---
+        // 手續費：朋友先抽走的錢，必須記錄才能計算真實獲利
+        serviceFee: parseFloat(document.getElementById('serviceFee').value) || 0, 
+        
+        // 分潤比例：改用百分比，建議你設定為 50 或 66 (代表你拿 2/3)
+        investorSplit: parseFloat(document.getElementById('investorSplit').value) || 50, 
+        partnerSplit: 100 - (parseFloat(document.getElementById('investorSplit').value) || 50),
+
         loanDate,
         rate,
         rateType: type,
         payDay,
         roundingType: roundingType || 'normal',
+        
+        // --- 新增：風險控管欄位 ---
+        // 初始狀態為 'active' (進行中)，後續可手動或自動改為 'delinquent' (逾期) 或 'bad_debt' (呆帳)
+        status: 'active', 
+        
         notes: notes || '',
-        repayments: [],
-        interestPayments: []
+        repayments: [], // 本金還款紀錄
+        interestPayments: [] // 利息回收紀錄
       };
       
       // 直接推送到 Firebase
