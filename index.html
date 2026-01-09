@@ -1112,7 +1112,7 @@ const newLoan = {
       container.innerHTML = '';
       
       // ==========================================
-      // 💡 [第一階段] 計算全域數據統計
+      // 💡 [第一階段] 計算全域數據統計 (頂部看板)
       // ==========================================
       let globalRemaining = 0;   // 📋 外面流通本金
       let globalRiskAmount = 0;  // 🛡️ 甲方未回收成本
@@ -1130,7 +1130,7 @@ const newLoan = {
           globalProfit += (interestProfit * splitRatio) + myFeeShare;
       });
 
-      // 更新看板 UI (加大標題版)
+      // 更新看板 UI (放大版標題 text-sm)
       const statsEl = document.getElementById('statsDashboard');
       if (statsEl) {
         statsEl.innerHTML = `
@@ -1162,25 +1162,22 @@ const newLoan = {
         const repayments = loan.repayments || [];
         const interestPayments = loan.interestPayments || [];
         
-        // --- 1. 計算個別合約數據 ---
+        // --- 1. 個別合約數據計算 ---
         const totalRepaid = repayments.reduce((sum, r) => sum + r.amount, 0);
         const remaining = loan.originalAmount - totalRepaid; 
-        
-        // 客戶還款進度 (進度條用)
         const borrowerProgress = Math.min(100, Math.round((totalRepaid / loan.originalAmount) * 100));
 
-        // 損益分配
+        const mySplitRatio = parseFloat(loan.investorSplit) || 50; 
         const interestProfit = interestPayments.reduce((sum, r) => sum + r.amount, 0);
         const totalGrossProfit = interestProfit + (parseFloat(loan.serviceFee) || 0);
-        const mySplitRatio = parseFloat(loan.investorSplit) || 50; 
         const my理论Share = Math.round(totalGrossProfit * (mySplitRatio / 100)); 
         const friend理论Share = totalGrossProfit - my理论Share; 
 
-        // 甲方實質風險
+        // 甲方風險水位
         const myAdvanceProfitShare = (parseFloat(loan.serviceFee) || 0) * (mySplitRatio / 100);
         const myNetRisk = loan.originalAmount - totalRepaid - myAdvanceProfitShare;
 
-        // --- 2. 現金分配試算 ---
+        // --- 2. 利息分配建議 ---
         const singleInterest = loan.originalAmount * (parseFloat(loan.rate) / 100);
         const bOverdrawn = (parseFloat(loan.serviceFee) || 0) - friend理论Share;
         let suggestA = 0, suggestB = 0;
@@ -1193,10 +1190,10 @@ const newLoan = {
             suggestB = singleInterest - suggestA;
         }
 
-        // --- 3. 動態視覺效果 (進度條顏色) ---
-        let progressColor = 'bg-red-500'; // 修正：此處僅宣告一次
-        if (borrowerProgress >= 100) progressColor = 'bg-emerald-500';
-        else if (borrowerProgress >= 50) progressColor = 'bg-amber-500';
+        // --- 3. 動態視覺效果 (修正重複宣告錯誤) ---
+        let pColor = 'bg-red-500'; 
+        if (borrowerProgress >= 100) pColor = 'bg-emerald-500';
+        else if (borrowerProgress >= 50) pColor = 'bg-amber-500';
 
         const isPaidOff = remaining <= 0;
         const isDue = checkIsDueToday(loan);
@@ -1210,13 +1207,14 @@ const newLoan = {
                   ${isPaidOff ? '<span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded-full">已結清</span>' : ''}
                 </h3>
                 <div class="text-xs text-slate-400 mt-1">借款日: ${loan.loanDate}</div>
+                ${loan.notes ? `<div class="text-xs text-slate-500 mt-1">📝 ${loan.notes}</div>` : ''}
               </div>
               <div class="text-right flex flex-col items-end gap-1">
-                <span class="text-lg font-bold text-slate-600">$${loan.originalAmount.toLocaleString()}</span>
                 <div class="flex gap-1">
                   <button onclick="openEditModal(${loan.id})" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg></button>
                   <button onclick="deleteLoan(${loan.id})" class="p-1.5 text-slate-400 hover:text-red-500 rounded"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
                 </div>
+                <span class="text-lg font-bold text-slate-600">$${loan.originalAmount.toLocaleString()}</span>
               </div>
             </div>
 
@@ -1225,7 +1223,7 @@ const newLoan = {
                 <div class="bg-slate-50 p-3 rounded border border-slate-100 flex flex-col justify-between">
                   <div>
                     <div class="flex justify-between items-center mb-1">
-                      <div class="text-xs text-slate-500 font-medium">剩餘客欠 (債權總額)</div>
+                      <div class="text-xs text-slate-500 font-medium">剩餘客欠 (債權)</div>
                       <div class="text-[10px] ${myNetRisk <= 0 ? 'text-emerald-600' : 'text-indigo-600'} font-bold">
                         ${myNetRisk <= 0 ? '🎉 已完全回本' : `實質未回本: $${Math.round(myNetRisk).toLocaleString()}`}
                       </div>
@@ -1238,14 +1236,14 @@ const newLoan = {
                       <span class="font-bold text-slate-700">${borrowerProgress}%</span>
                     </div>
                     <div class="w-full bg-slate-200 rounded-full h-2.5">
-                      <div class="${progressColor} h-2.5 rounded-full transition-all duration-700" style="width: ${borrowerProgress}%"></div>
+                      <div class="${pColor} h-2.5 rounded-full transition-all duration-700" style="width: ${borrowerProgress}%"></div>
                     </div>
                   </div>
                 </div>
 
                 <div class="bg-amber-50 p-3 rounded border border-amber-100 flex flex-col justify-between">
                   <div>
-                    <div class="text-sm text-amber-600 font-bold mb-2 flex justify-between">
+                    <div class="text-xs text-amber-600 font-bold mb-2 flex justify-between">
                       <span>損益結算 (${mySplitRatio}/${100 - mySplitRatio} 拆)</span>
                       <span>甲方比例 ${mySplitRatio}%</span>
                     </div>
@@ -1258,7 +1256,6 @@ const newLoan = {
                       <span class="text-slate-500">+${friend理论Share.toLocaleString()}</span>
                     </div>
                   </div>
-                  
                   <div class="mt-2 pt-2 border-t border-amber-200">
                     <div class="text-[10px] font-bold ${bOverdrawn > 0 ? 'text-red-500' : 'text-emerald-600'} flex justify-between">
                         <span>${bOverdrawn > 0 ? `⚠️ 乙方超領預支` : '✅ 帳目分配平衡'}</span>
@@ -1275,7 +1272,7 @@ const newLoan = {
                 </div>
               </div>
 
-              <div class="flex gap-2 mb-3">
+              <div class="flex gap-2">
                 ${!isPaidOff ? `<button onclick="openModal('principal', ${loan.id})" class="flex-1 bg-emerald-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 shadow-sm transition">還本金</button>` : ''}
                 <button onclick="openModal('interest', ${loan.id})" class="flex-1 bg-amber-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-amber-600 shadow-sm transition">收利息</button>
               </div>
