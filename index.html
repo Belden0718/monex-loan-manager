@@ -343,7 +343,25 @@
             <label class="block text-xs font-medium text-slate-500 mb-1">備註</label>
             <input type="text" id="notes" placeholder="備註資訊（選填）" class="w-full border rounded-lg p-2.5 outline-none">
           </div>
-        
+
+          <div class="lg:col-span-3 bg-slate-50 p-4 rounded-xl border border-dashed border-slate-300">
+            <label class="block text-xs font-bold text-slate-500 mb-3">🛡️ 法律文件備查 (確保權益)</label>
+            <div class="flex flex-wrap gap-4">
+              <label class="flex items-center gap-2 cursor-pointer group">
+                <input type="checkbox" id="hasNote" class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500">
+                <span class="text-sm text-slate-600 group-hover:text-indigo-600">已收本票正本</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer group">
+                <input type="checkbox" id="hasIdCopy" class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500">
+                <span class="text-sm text-slate-600 group-hover:text-indigo-600">已留身分證影本</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer group">
+                <input type="checkbox" id="hasRemitRecord" class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500">
+                <span class="text-sm text-slate-600 group-hover:text-indigo-600">已留匯款截圖</span>
+              </label>
+            </div>
+          </div>
+          
           <div class="lg:col-span-3">
             <button onclick="addLoan()" class="w-full bg-indigo-600 text-white font-bold py-2.5 px-4 rounded-lg hover:bg-indigo-700 transition shadow-lg shadow-indigo-200">
               建立合約
@@ -927,6 +945,7 @@
     }
 
     function addLoan() {
+      // 1. 抓取基本欄位資料
       const borrower = document.getElementById('borrower').value;
       const amount = parseFloat(document.getElementById('amount').value);
       const loanDate = document.getElementById('loanDate').value;
@@ -936,18 +955,22 @@
       const roundingType = document.getElementById('roundingType').value;
       const notes = document.getElementById('notes').value;
       
+      // 💡 2. [新增] 抓取法律文件勾選狀態
+      const hasNote = document.getElementById('hasNote').checked;
+      const hasIdCopy = document.getElementById('hasIdCopy').checked;
+      const hasRemitRecord = document.getElementById('hasRemitRecord').checked;
+
+      // 3. 必填欄位驗證
       if (!borrower || !amount || !loanDate) return alert("請填寫必要欄位");
       
-const newLoan = {
+      // 4. 構建新合約物件
+      const newLoan = {
         id: Date.now(),
         borrower,
         originalAmount: amount,
         
-        // --- 新增：財務透明化欄位 ---
-        // 手續費：朋友先抽走的錢，必須記錄才能計算真實獲利
+        // 財務分潤欄位
         serviceFee: parseFloat(document.getElementById('serviceFee').value) || 0, 
-        
-        // 分潤比例：改用百分比，建議你設定為 50 或 66 (代表你拿 2/3)
         investorSplit: parseFloat(document.getElementById('investorSplit').value) || 50, 
         partnerSplit: 100 - (parseFloat(document.getElementById('investorSplit').value) || 50),
 
@@ -957,30 +980,50 @@ const newLoan = {
         payDay,
         roundingType: roundingType || 'normal',
         
-        // --- 新增：風險控管欄位 ---
-        // 初始狀態為 'active' (進行中)，後續可手動或自動改為 'delinquent' (逾期) 或 'bad_debt' (呆帳)
+        // 風險與狀態
         status: 'active', 
-        
         notes: notes || '',
-        repayments: [], // 本金還款紀錄
-        interestPayments: [] // 利息回收紀錄
+
+        // 💡 [新增] 存入法律文件狀態
+        hasNote: hasNote,
+        hasIdCopy: hasIdCopy,
+        hasRemitRecord: hasRemitRecord,
+
+        repayments: [], // 初始化還本紀錄
+        interestPayments: [] // 初始化獲利紀錄
       };
       
-      // 直接推送到 Firebase
-      loansRef.child(newLoan.id).set(newLoan);
-      
-      // 清空表單，恢復預設值
-      document.getElementById('borrower').value = '';
-      document.getElementById('amount').value = '';
-      document.getElementById('loanDate').valueAsDate = new Date();
-      document.getElementById('interestRate').value = '';
-      document.getElementById('interestType').value = '月';
-      document.getElementById('payDayDate').value = '';
-      document.getElementById('roundingType').value = 'normal';
-      document.getElementById('serviceFee').value = ''; // 手續費清空，因為每筆不同
-      document.getElementById('investorSplit').value = '50'; // 分潤比例恢復預設 50，方便下次微調
-      document.getElementById('notes').value = '';
-      togglePayDayInput('new');
+      // 5. 推送到 Firebase
+      loansRef.child(newLoan.id).set(newLoan)
+        .then(() => {
+          // 6. 清空表單，恢復預設值
+          document.getElementById('borrower').value = '';
+          document.getElementById('amount').value = '';
+          document.getElementById('loanDate').valueAsDate = new Date();
+          document.getElementById('interestRate').value = '';
+          document.getElementById('interestType').value = '月';
+          document.getElementById('payDayDate').value = '';
+          document.getElementById('roundingType').value = 'normal';
+          document.getElementById('serviceFee').value = '';
+          document.getElementById('investorSplit').value = '50';
+          document.getElementById('notes').value = '';
+
+          // 💡 [新增] 清空勾選框
+          document.getElementById('hasNote').checked = false;
+          document.getElementById('hasIdCopy').checked = false;
+          document.getElementById('hasRemitRecord').checked = false;
+
+          togglePayDayInput('new');
+          
+          // 關閉新增區塊 (選用)
+          // document.querySelector('details').open = false;
+          
+          console.log("✅ 合約已成功建立並同步至雲端");
+        })
+        .catch((error) => {
+          console.error("❌ 儲存失敗:", error);
+          alert("儲存失敗，請檢查網路連線");
+        });
     }
 
     function deleteLoan(id) {
@@ -1112,7 +1155,7 @@ const newLoan = {
       container.innerHTML = '';
       
       // ==========================================
-      // 💡 [第一階段] 全域數據統計 (頂部看板)
+      // 💡 [第一階段] 計算全域數據統計 (頂部看板)
       // ==========================================
       let globalRemaining = 0;   // 📋 外面流通本金
       let globalRiskAmount = 0;  // 🛡️ 甲方未回收成本
@@ -1130,7 +1173,7 @@ const newLoan = {
           globalProfit += (interestProfit * splitRatio) + myFeeShare;
       });
 
-      // 更新看板 UI (放大版標題 text-sm)
+      // 更新看板 UI (加大標題)
       const statsEl = document.getElementById('statsDashboard');
       if (statsEl) {
         statsEl.innerHTML = `
@@ -1162,24 +1205,28 @@ const newLoan = {
         const repayments = loan.repayments || [];
         const interestPayments = loan.interestPayments || [];
         
-        // --- 1. 個別合約數據計算 ---
+        // --- 1. 計算個別合約數據 ---
         const totalRepaid = repayments.reduce((sum, r) => sum + r.amount, 0);
         const remaining = loan.originalAmount - totalRepaid; 
+        
+        // A. 客戶還款進度 (0-100%)
         const borrowerProgress = Math.min(100, Math.round((totalRepaid / loan.originalAmount) * 100));
 
+        // B. 分潤比例與金額
         const mySplitRatio = parseFloat(loan.investorSplit) || 50; 
+        const fee = parseFloat(loan.serviceFee) || 0;
         const interestProfit = interestPayments.reduce((sum, r) => sum + r.amount, 0);
-        const totalGrossProfit = interestProfit + (parseFloat(loan.serviceFee) || 0);
+        const totalGrossProfit = interestProfit + fee;
         const my理论Share = Math.round(totalGrossProfit * (mySplitRatio / 100)); 
         const friend理论Share = totalGrossProfit - my理论Share; 
 
-        // 甲方風險水位
-        const myAdvanceProfitShare = (parseFloat(loan.serviceFee) || 0) * (mySplitRatio / 100);
-        const myNetRisk = loan.originalAmount - totalRepaid - myAdvanceProfitShare;
+        // C. 甲方實質風險水位 (口袋還有多少錢沒拿回來)
+        const myFeeShare = fee * (mySplitRatio / 100);
+        const myNetRisk = loan.originalAmount - totalRepaid - myFeeShare;
 
-        // --- 2. 利息分配建議 ---
+        // --- 2. 利息分配建議 (對沖邏輯) ---
         const singleInterest = loan.originalAmount * (parseFloat(loan.rate) / 100);
-        const bOverdrawn = (parseFloat(loan.serviceFee) || 0) - friend理论Share;
+        const bOverdrawn = fee - friend理论Share;
         let suggestA = 0, suggestB = 0;
 
         if (bOverdrawn > 0) {
@@ -1190,10 +1237,10 @@ const newLoan = {
             suggestB = singleInterest - suggestA;
         }
 
-        // --- 3. 動態視覺效果 (只在此處宣告一次 pColor) ---
-        let pColor = 'bg-red-500'; 
-        if (borrowerProgress >= 100) pColor = 'bg-emerald-500';
-        else if (borrowerProgress >= 50) pColor = 'bg-amber-500';
+        // --- 3. 動態視覺效果 ---
+        let pBarColor = 'bg-red-500'; 
+        if (borrowerProgress >= 100) pBarColor = 'bg-emerald-500';
+        else if (borrowerProgress >= 50) pBarColor = 'bg-amber-500';
 
         const isPaidOff = remaining <= 0;
         const isDue = checkIsDueToday(loan);
@@ -1204,10 +1251,15 @@ const newLoan = {
               <div>
                 <h3 class="text-xl font-bold text-slate-800 flex items-center gap-2">
                   ${loan.borrower}
-                  ${isPaidOff ? '<span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded-full">已結清</span>' : ''}
+                  ${isPaidOff ? '<span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded-full font-bold">已結清</span>' : ''}
                 </h3>
                 <div class="text-xs text-slate-400 mt-1">借款日: ${loan.loanDate}</div>
-                ${loan.notes ? `<div class="text-xs text-slate-500 mt-1">📝 ${loan.notes}</div>` : ''}
+                
+                <div class="flex flex-wrap gap-1.5 mt-2">
+                  ${loan.hasNote ? '<span class="bg-blue-100 text-blue-700 text-[10px] px-1.5 py-0.5 rounded font-bold">🎫 本票已收</span>' : '<span class="bg-slate-100 text-slate-400 text-[10px] px-1.5 py-0.5 rounded">🎫 欠本票</span>'}
+                  ${loan.hasIdCopy ? '<span class="bg-indigo-100 text-indigo-700 text-[10px] px-1.5 py-0.5 rounded font-bold">🆔 證件已留</span>' : ''}
+                  ${loan.hasRemitRecord ? '<span class="bg-emerald-100 text-emerald-700 text-[10px] px-1.5 py-0.5 rounded font-bold">📱 匯款有據</span>' : '<span class="bg-red-50 text-red-400 text-[10px] px-1.5 py-0.5 rounded border border-red-100">⚠️ 缺匯款單</span>'}
+                </div>
               </div>
               <div class="text-right flex flex-col items-end gap-1">
                 <div class="flex gap-1">
@@ -1217,6 +1269,7 @@ const newLoan = {
                   ` : ''}
                 </div>
                 <span class="text-lg font-bold text-slate-600">$${loan.originalAmount.toLocaleString()}</span>
+                ${loan.notes ? `<div class="text-[10px] text-slate-400 max-w-[150px] truncate">📝 ${loan.notes}</div>` : ''}
               </div>
             </div>
 
@@ -1238,7 +1291,7 @@ const newLoan = {
                       <span class="font-bold text-slate-700">${borrowerProgress}%</span>
                     </div>
                     <div class="w-full bg-slate-200 rounded-full h-2.5">
-                      <div class="${pColor} h-2.5 rounded-full transition-all duration-700" style="width: ${borrowerProgress}%"></div>
+                      <div class="${pBarColor} h-2.5 rounded-full transition-all duration-700" style="width: ${borrowerProgress}%"></div>
                     </div>
                   </div>
                 </div>
@@ -1282,7 +1335,7 @@ const newLoan = {
               </div>
 
               <details class="group/detail mt-3">
-                <summary class="flex justify-center items-center cursor-pointer text-sm text-slate-400 hover:text-indigo-500 py-1 select-none">
+                <summary class="flex justify-center items-center cursor-pointer text-sm text-slate-400 hover:text-indigo-500 py-1 select-none transition-colors">
                   <span>查看詳細交易明細</span>
                 </summary>
                 <div class="mt-2 grid grid-cols-2 gap-3 text-sm bg-slate-50 p-3 rounded-lg border border-slate-100 max-h-48 overflow-y-auto">
@@ -1310,7 +1363,7 @@ const newLoan = {
         container.innerHTML += html;
       });
     }
-
+    
     // 移除授權使用者
     async function removeAuthorizedUser(email) {
       if (!confirm(`確定要移除 ${email} 的訪問權限嗎？`)) {
