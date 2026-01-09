@@ -339,9 +339,9 @@
             <input type="number" id="investorSplit" value="50" min="0" max="100" step="1" class="w-full border rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500">
             <p class="text-[10px] text-slate-400 mt-1">目前你領取的佔比</p>
           </div>
-          <div class="lg:col-span-3">
+          <div>
             <label class="block text-xs font-medium text-slate-500 mb-1">備註</label>
-            <input type="text" id="notes" placeholder="備註資訊（選填）" class="w-full border rounded-lg p-2.5 outline-none">
+            <input type="text" id="notes" placeholder="備註資訊（選填）" class="w-full border rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500">
           </div>
 
           <div class="lg:col-span-3 bg-slate-50 p-4 rounded-xl border border-dashed border-slate-300">
@@ -472,7 +472,7 @@
           </div>
           <div class="col-span-2">
             <label class="text-xs text-slate-500">原始金額</label>
-            <input type="number" id="editAmount" step="1000" class="w-full border rounded p-2">
+            <input type="number" id="editAmount" class="w-full border rounded p-2">
           </div>
           <div class="col-span-2">
             <label class="text-xs text-slate-500">借款日期</label>
@@ -483,45 +483,34 @@
             <input type="number" id="editRate" class="w-full border rounded p-2">
           </div>
           <div>
-            <label class="text-xs text-slate-500">週期</label>
-            <select id="editRateType" onchange="togglePayDayInput('edit')" class="w-full border rounded p-2 bg-white">
-              <option value="月">月息</option>
-              <option value="週">週息</option>
-            </select>
+            <label class="text-xs text-slate-500">分潤 (%)</label>
+            <input type="number" id="editInvestorSplit" class="w-full border rounded p-2">
           </div>
           <div class="col-span-2">
-            <label class="text-xs text-slate-500">繳息機制</label>
-            <select id="editRoundingType" class="w-full border rounded p-2 bg-white">
-              <option value="normal">正常制</option>
-              <option value="round">取整數制 (百位)</option>
-            </select>
-          </div>
-          <div class="col-span-2">
-            <label class="text-xs text-slate-500">約定繳息時間</label>
-            <div id="monthlyInput_edit">
-              <input type="number" id="editPayDayDate" placeholder="每月幾號 (1-31)" min="1" max="31" class="w-full border rounded p-2">
-            </div>
-            <select id="editPayDayWeek" class="hidden w-full border rounded p-2 bg-white">
-              <option value="1">每週一</option>
-              <option value="2">每週二</option>
-              <option value="3">每週三</option>
-              <option value="4">每週四</option>
-              <option value="5">每週五</option>
-              <option value="6">每週六</option>
-              <option value="0">每週日</option>
-            </select>
-          </div>
-          <div>
-            <label class="text-xs text-slate-500">手續費 (開辦費)</label>
-            <input type="number" id="editServiceFee" class="w-full border rounded p-2 outline-none">
-          </div>
-          <div>
-            <label class="text-xs text-slate-500">甲方分潤比例 (%) 📊</label>
-            <input type="number" id="editInvestorSplit" class="w-full border rounded p-2 outline-none">
+            <label class="text-xs text-slate-500">手續費</label>
+            <input type="number" id="editServiceFee" class="w-full border rounded p-2">
           </div>
           <div class="col-span-2">
             <label class="text-xs text-slate-500">備註</label>
-            <input type="text" id="editNotes" placeholder="備註資訊（選填）" class="w-full border rounded p-2">
+            <input type="text" id="editNotes" class="w-full border rounded p-2">
+          </div>
+
+          <div class="col-span-2 bg-slate-50 p-3 rounded-lg border border-dashed border-slate-300 mt-2">
+            <label class="block text-[10px] font-bold text-slate-500 mb-2">🛡️ 法律文件補正</label>
+            <div class="grid grid-cols-1 gap-2">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="editHasNote" class="rounded text-indigo-600">
+                <span class="text-xs text-slate-600">本票正本</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="editHasIdCopy" class="rounded text-indigo-600">
+                <span class="text-xs text-slate-600">身分證影本</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="editHasRemitRecord" class="rounded text-indigo-600">
+                <span class="text-xs text-slate-600">匯款截圖</span>
+              </label>
+            </div>
           </div>
         </div>
         <div class="mt-6 flex gap-3 sticky bottom-0 bg-white pt-4 border-t border-slate-100">
