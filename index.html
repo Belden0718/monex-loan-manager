@@ -1121,22 +1121,43 @@ const newLoan = {
             if (!loan.repayments) loan.repayments = [];
             if (!loan.interestPayments) loan.interestPayments = [];
             
-            // --- 1. 核心計算邏輯 ---
-            const totalRepaid = loan.repayments.reduce((sum, r) => sum + r.amount, 0);
-            const remaining = loan.originalAmount - totalRepaid; 
+            // --- 1. 核心計算邏輯 (修正：債權與風險分離版) ---
+            const totalRepaid = loan.repayments.reduce((sum, r) => sum + r.amount, 0); // 客戶實際還的本金
+            const remaining = loan.originalAmount - totalRepaid; // 客戶法律上還欠多少
+    
+            // 🔥 A. 客戶還款進度 (這才是進度條要用的，最高 100%)
+            const borrowerProgress = Math.min(100, Math.round((totalRepaid / loan.originalAmount) * 100));
+    
+            // 🔥 B. 甲方實質風險水位 (文字顯示：你口袋還有多少錢沒拿回來)
+            const mySplitRatio = parseFloat(loan.investorSplit) || 50; 
+            const myAdvanceProfitShare = (parseFloat(loan.serviceFee) || 0) * (mySplitRatio / 100);
+            // 甲方未回收成本 = 原始本金 - 客戶已還本金 - 甲方已分得的手續費
+            const myNetRisk = loan.originalAmount - totalRepaid - myAdvanceProfitShare;
+    
+            // --- 損益分配計算 (維持不變) ---
             const interestProfit = loan.interestPayments.reduce((sum, r) => sum + r.amount, 0);
             const totalGrossProfit = interestProfit + (parseFloat(loan.serviceFee) || 0);
-            const mySplitRatio = parseFloat(loan.investorSplit) || 50; 
             const my理论Share = Math.round(totalGrossProfit * (mySplitRatio / 100)); 
             const friend理论Share = totalGrossProfit - my理论Share; 
-            const myAdvanceProfitShare = (parseFloat(loan.serviceFee) || 0) * (mySplitRatio / 100);
-            const totalRecoveredForA = totalRepaid + myAdvanceProfitShare;
-            const recoveryProgress = Math.min(100, Math.round((totalRecoveredForA / loan.originalAmount) * 100));
     
             // --- 2. 本次利息現金分配建議 (對沖邏輯) ---
             const singleInterest = loan.originalAmount * (parseFloat(loan.rate) / 100);
             const bOverdrawn = (parseFloat(loan.serviceFee) || 0) - friend理论Share;
             let suggestA = 0, suggestB = 0;
+    
+            if (bOverdrawn > 0) {
+                suggestA = Math.min(singleInterest, (singleInterest * (mySplitRatio / 100)) + bOverdrawn);
+                suggestB = Math.max(0, singleInterest - suggestA);
+            } else {
+                suggestA = singleInterest * (mySplitRatio / 100);
+                suggestB = singleInterest - suggestA;
+            }
+    
+            // --- 3. 動態視覺效果 ---
+            // 進度條改由「客戶還款進度」決定顏色
+            let progressColor = 'bg-red-500'; 
+            if (borrowerProgress >= 100) progressColor = 'bg-emerald-500';
+            else if (borrowerProgress >= 50) progressColor = 'bg-amber-500';
     
             if (bOverdrawn > 0) {
                 // 補償優先：甲方實領 = (甲方理論當次分潤) + (乙方超領的補償)，但不能超過單次利息總額
@@ -1189,18 +1210,23 @@ const newLoan = {
                     <div class="bg-slate-50 p-3 rounded border border-slate-100 flex flex-col justify-between">
                       <div>
                         <div class="flex justify-between items-center mb-1">
-                          <div class="text-xs text-slate-500 font-medium">剩餘本金 (客欠)</div>
-                          <div class="text-[10px] text-indigo-600 font-bold">安全水位: ${recoveryProgress}%</div>
+                          <div class="text-xs text-slate-500 font-medium">剩餘客欠 (債權總額)</div>
+                          <div class="text-[10px] ${myNetRisk <= 0 ? 'text-emerald-600' : 'text-indigo-600'} font-bold">
+                            ${myNetRisk <= 0 ? '🎉 已完全回本' : `實質未回本: $${Math.round(myNetRisk).toLocaleString()}`}
+                          </div>
                         </div>
-                        <div class="text-xl font-bold ${isPaidOff ? 'text-emerald-500' : 'text-slate-800'}">$${remaining.toLocaleString()}</div>
+                        <div class="text-xl font-black ${isPaidOff ? 'text-emerald-500' : 'text-slate-800'}">
+                          $${remaining.toLocaleString()}
+                        </div>
                       </div>
+                      
                       <div class="mt-3">
                         <div class="flex justify-between text-[10px] mb-1">
-                          <span class="text-slate-400">已回本：$${Math.round(totalRecoveredForA).toLocaleString()}</span>
-                          <span class="font-bold text-indigo-600">${recoveryProgress}%</span>
+                          <span class="text-slate-400 font-bold">客戶還款進度</span>
+                          <span class="font-bold text-slate-700">${borrowerProgress}%</span>
                         </div>
                         <div class="w-full bg-slate-200 rounded-full h-2.5">
-                          <div class="${progressColor} h-2.5 rounded-full transition-all duration-700" style="width: ${recoveryProgress}%"></div>
+                          <div class="${progressColor} h-2.5 rounded-full transition-all duration-700" style="width: ${borrowerProgress}%"></div>
                         </div>
                       </div>
                     </div>
