@@ -331,10 +331,10 @@
         
           <div>
             <label class="block text-xs font-medium text-slate-500 mb-1">手續費 (開辦費) 💰</label>
-            <input type="number" id="serviceFee" placeholder="朋友先抽走的金額" min="0" step="100" class="w-full border rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500">
+            <input type="number" id="serviceFee" placeholder="乙方預領" min="0" step="100" class="w-full border rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500">
           </div>
           <div>
-            <label class="block text-xs font-medium text-slate-500 mb-1">我的分潤比例 (%) 📊</label>
+            <label class="block text-xs font-medium text-slate-500 mb-1">甲方分潤比例 (%) 📊</label>
             <input type="number" id="investorSplit" value="50" min="0" max="100" step="1" class="w-full border rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500">
             <p class="text-[10px] text-slate-400 mt-1">目前你領取的佔比</p>
           </div>
@@ -497,7 +497,7 @@
             <input type="number" id="editServiceFee" class="w-full border rounded p-2 outline-none">
           </div>
           <div>
-            <label class="text-xs text-slate-500">金主分潤比例 (%)</label>
+            <label class="text-xs text-slate-500">甲方分潤比例 (%) 📊</label>
             <input type="number" id="editInvestorSplit" class="w-full border rounded p-2 outline-none">
           </div>
           <div class="col-span-2">
@@ -656,7 +656,7 @@
       // 顯示使用者資訊
       document.getElementById('userAvatar').src = user.photoURL || 'https://via.placeholder.com/40';
       document.getElementById('userName').textContent = user.displayName || user.email.split('@')[0];
-      document.getElementById('userRole').textContent = isOwner ? '擁有者' : '協作者';
+      document.getElementById('userRole').textContent = isOwner ? '甲方 (擁有者)' : '乙方 (協作者)';
       document.getElementById('dropdownName').textContent = user.displayName || user.email.split('@')[0];
       document.getElementById('dropdownEmail').textContent = user.email;
       
@@ -1082,21 +1082,29 @@ const newLoan = {
             if (!loan.repayments) loan.repayments = [];
             if (!loan.interestPayments) loan.interestPayments = [];
             
-            // --- 核心計算邏輯 ---
-            const totalRepaid = loan.repayments.reduce((sum, r) => sum + r.amount, 0);
-            const remaining = loan.originalAmount - totalRepaid;
+            // --- 核心計算邏輯 (甲方風險自動折抵版) ---
             
-            // 總收益 = 已收利息 + 手續費 (開辦費)
+            // 1. 計算客戶「實際還給甲方」的本金總額
+            const totalRepaid = loan.repayments.reduce((sum, r) => sum + r.amount, 0);
+            const remaining = loan.originalAmount - totalRepaid; // 這顯示客戶還欠多少
+            
+            // 2. 總收益 = 累積已收利息 + 乙方預領利潤 (原手續費)
             const interestProfit = loan.interestPayments.reduce((sum, r) => sum + r.amount, 0);
             const totalGrossProfit = interestProfit + (parseFloat(loan.serviceFee) || 0);
-    
-            // 根據你存入的 investorSplit 比例計算分潤
+            
+            // 3. 根據甲方分潤比例計算「理論應得」
             const mySplitRatio = parseFloat(loan.investorSplit) || 50; 
-            const myShare = Math.round(totalGrossProfit * (mySplitRatio / 100));
-            const friendShare = totalGrossProfit - myShare;
-    
-            // 計算本金回收進度
-            const recoveryProgress = Math.min(100, Math.round((totalRepaid / loan.originalAmount) * 100));
+            const myShare = Math.round(totalGrossProfit * (mySplitRatio / 100)); // 甲方應得利潤
+            const friendShare = totalGrossProfit - myShare; // 乙方應得利潤
+            
+            // 4. 🔥 核心亮點：計算「甲方實質回收金額」
+            // 甲方實質拿回 = 客戶還的本金 + (乙方預領利潤中屬於甲方的份額)
+            const myAdvanceProfitShare = (parseFloat(loan.serviceFee) || 0) * (mySplitRatio / 100);
+            const totalRecoveredForA = totalRepaid + myAdvanceProfitShare;
+            
+            // 5. 計算「甲方本金回收進度」
+            const recoveryProgress = Math.min(100, Math.round((totalRecoveredForA / loan.originalAmount) * 100));
+            
             // --- 計算結束 ---
     
             const isPaidOff = remaining <= 0;
@@ -1144,17 +1152,22 @@ const newLoan = {
                 <div class="p-4">
                   <div class="grid grid-cols-2 gap-4 mb-4">
                     <div class="bg-slate-50 p-3 rounded border border-slate-100">
-                      <div class="text-xs text-slate-500">剩餘本金</div>
-                      <div class="text-xl font-bold ${isPaidOff ? 'text-emerald-500' : 'text-slate-800'}">${remaining.toLocaleString()}</div>
+                      <div class="text-xs text-slate-500">剩餘本金 (客欠)</div>
+                      <div class="text-xl font-bold ${isPaidOff ? 'text-emerald-500' : 'text-slate-800'}">
+                        ${remaining.toLocaleString()}
+                      </div>
+                      <div class="text-[10px] text-indigo-600 font-bold mt-1">
+                        甲方已回本：${totalRecoveredForA.toLocaleString()}
+                      </div>
                       <div class="mt-2 w-full bg-slate-200 rounded-full h-1">
-                        <div class="bg-emerald-500 h-1 rounded-full transition-all" style="width: ${recoveryProgress}%"></div>
+                        <div class="bg-indigo-500 h-1 rounded-full transition-all" style="width: ${recoveryProgress}%"></div>
                       </div>
                     </div>
 
                     <div class="bg-amber-50 p-3 rounded border border-amber-100 relative">
-                      <div class="text-xs text-amber-600">合夥分潤 (金主比例 ${loan.investorSplit}%)</div>
-                      <div class="text-sm font-bold text-slate-700">我: <span class="text-indigo-600">+${myShare.toLocaleString()}</span></div>
-                      <div class="text-sm font-bold text-slate-700">友: <span class="text-slate-500">+${friendShare.toLocaleString()}</span></div>
+                      <div class="text-xs text-amber-600">合夥分潤結算 (甲方比例 ${loan.investorSplit}%)</div>
+                      <div class="text-sm font-bold text-slate-700">甲方(金主): <span class="text-indigo-600">+${myShare.toLocaleString()}</span></div>
+                      <div class="text-sm font-bold text-slate-700">乙方(業務): <span class="text-slate-500">+${friendShare.toLocaleString()}</span></div>
                       
                       <div class="mt-2">
                         <div class="flex justify-between text-[10px] mb-1">
