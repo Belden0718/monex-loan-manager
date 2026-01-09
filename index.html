@@ -1224,9 +1224,15 @@
                 <div class="text-xs text-slate-400 mt-1">借款日: ${loan.loanDate}</div>
                 
                 <div class="flex flex-wrap gap-1.5 mt-2">
-                  ${loan.hasNote ? '<span class="bg-blue-100 text-blue-700 text-[10px] px-1.5 py-0.5 rounded font-bold">🎫 本票已收</span>' : '<span class="bg-slate-100 text-slate-400 text-[10px] px-1.5 py-0.5 rounded">🎫 欠本票</span>'}
-                  ${loan.hasIdCopy ? '<span class="bg-indigo-100 text-indigo-700 text-[10px] px-1.5 py-0.5 rounded font-bold">🆔 證件已留</span>' : '<span class="bg-slate-100 text-slate-400 text-[10px] px-1.5 py-0.5 rounded">🆔 缺身分證</span>'}
-                  ${loan.hasRemitRecord ? '<span class="bg-emerald-100 text-emerald-700 text-[10px] px-1.5 py-0.5 rounded font-bold">📱 匯款有據</span>' : '<span class="bg-red-50 text-red-400 text-[10px] px-1.5 py-0.5 rounded border border-red-100">⚠️ 缺匯款單</span>'}
+                  ${loan.hasNote ? 
+                    '<span class="bg-blue-100 text-blue-700 text-[10px] px-1.5 py-0.5 rounded font-bold">🎫 本票已收</span>' : 
+                    '<span class="bg-slate-100 text-slate-400 text-[10px] px-1.5 py-0.5 rounded">🎫 欠本票</span>'}
+                  ${loan.hasIdCopy ? 
+                    '<span class="bg-indigo-100 text-indigo-700 text-[10px] px-1.5 py-0.5 rounded font-bold">🆔 證件已留</span>' : 
+                    '<span class="bg-slate-100 text-slate-400 text-[10px] px-1.5 py-0.5 rounded">🆔 缺身分證</span>'}
+                  ${loan.hasRemitRecord ? 
+                    '<span class="bg-emerald-100 text-emerald-700 text-[10px] px-1.5 py-0.5 rounded font-bold">📱 匯款有據</span>' : 
+                    '<span class="bg-red-50 text-red-400 text-[10px] px-1.5 py-0.5 rounded border border-red-100">⚠️ 缺匯款單</span>'}
                 </div>
               </div>
               <div class="text-right flex flex-col items-end gap-1">
