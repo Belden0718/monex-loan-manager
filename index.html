@@ -273,7 +273,8 @@
         </div>
       </div>
     </div>
-
+    <div id="statsDashboard" class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+      </div>
     <details class="bg-white rounded-2xl shadow-sm border border-slate-200 mb-6 group" open>
       <summary class="p-4 cursor-pointer list-none flex justify-between items-center font-bold text-slate-600 hover:text-indigo-600">
         <span>➕ 新增借款合約</span>
@@ -1071,6 +1072,47 @@ const newLoan = {
     function renderLoans() {
           const container = document.getElementById('loanList');
           container.innerHTML = '';
+          
+          // ==========================================
+          // 💡 [新增] 全域數據統計邏輯
+          // ==========================================
+          let globalRemaining = 0;   // 總客欠本金 (外面流通的錢)
+          let globalRiskAmount = 0;  // 甲方實質未回收成本 (真正的風險)
+          let globalProfit = 0;     // 甲方累計已得收益 (獲利總和)
+    
+          loans.forEach(loan => {
+              const repaid = loan.repayments.reduce((sum, r) => sum + r.amount, 0);
+              const interest = loan.interestPayments.reduce((sum, r) => sum + r.amount, 0);
+              const fee = parseFloat(loan.serviceFee) || 0;
+              const split = (parseFloat(loan.investorSplit) || 50) / 100;
+    
+              // 1. 客欠總額 (法律上客戶還欠你多少)
+              globalRemaining += (loan.originalAmount - repaid);
+              
+              // 2. 甲方風險水位 (本金 - 客還本金 - 甲方分得的手續費)
+              globalRiskAmount += (loan.originalAmount - (repaid + (fee * split)));
+              
+              // 3. 甲方累計獲利 (已收利息分潤 + 手續費分潤)
+              globalProfit += (interest * split) + (fee * split);
+          });
+    
+          // 更新看板 UI
+          const statsEl = document.getElementById('statsDashboard');
+          statsEl.innerHTML = `
+            <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+              <div class="text-[10px] text-slate-500 font-bold mb-1">📋 外面流通本金</div>
+              <div class="text-lg font-black text-slate-800">$${Math.round(globalRemaining).toLocaleString()}</div>
+            </div>
+            <div class="bg-indigo-50 p-3 rounded-xl border border-indigo-100 shadow-sm">
+              <div class="text-[10px] text-indigo-600 font-bold mb-1">🛡️ 甲方未回收成本</div>
+              <div class="text-lg font-black text-indigo-700">$${Math.round(globalRiskAmount).toLocaleString()}</div>
+            </div>
+            <div class="bg-amber-50 p-3 rounded-xl border border-amber-100 shadow-sm hidden md:block">
+              <div class="text-[10px] text-amber-600 font-bold mb-1">💰 甲方累計收益</div>
+              <div class="text-lg font-black text-amber-600">$${Math.round(globalProfit).toLocaleString()}</div>
+            </div>
+          `;
+          // ==========================================
           const sortedLoans = getSortedLoans();
           
           if (sortedLoans.length === 0) {
