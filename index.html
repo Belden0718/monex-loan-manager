@@ -1136,12 +1136,9 @@
       if (!container) return;
       container.innerHTML = '';
       
-      // ==========================================
-      // 💡 [第一階段] 計算全域數據統計 (頂部看板)
-      // ==========================================
-      let globalRemaining = 0;   // 📋 外面流通本金
-      let globalRiskAmount = 0;  // 🛡️ 甲方未回收成本
-      let globalProfit = 0;      // 💰 甲方累計收益
+      let globalRemaining = 0;   
+      let globalRiskAmount = 0;  
+      let globalProfit = 0;      
 
       loans.forEach(loan => {
           const totalRepaid = (loan.repayments || []).reduce((sum, r) => sum + r.amount, 0);
@@ -1155,7 +1152,6 @@
           globalProfit += (interestProfit * splitRatio) + myFeeShare;
       });
 
-      // 更新看板 UI (加大標題)
       const statsEl = document.getElementById('statsDashboard');
       if (statsEl) {
         statsEl.innerHTML = `
@@ -1174,9 +1170,6 @@
         `;
       }
 
-      // ==========================================
-      // 💡 [第二階段] 渲染下方合約列表
-      // ==========================================
       const sortedLoans = getSortedLoans();
       if (sortedLoans.length === 0) {
         container.innerHTML = '<div class="text-center text-slate-400 py-10">尚無紀錄</div>';
@@ -1187,14 +1180,10 @@
         const repayments = loan.repayments || [];
         const interestPayments = loan.interestPayments || [];
         
-        // --- 1. 計算個別合約數據 ---
         const totalRepaid = repayments.reduce((sum, r) => sum + r.amount, 0);
         const remaining = loan.originalAmount - totalRepaid; 
-        
-        // A. 客戶還款進度 (0-100%)
         const borrowerProgress = Math.min(100, Math.round((totalRepaid / loan.originalAmount) * 100));
 
-        // B. 分潤比例與金額
         const mySplitRatio = parseFloat(loan.investorSplit) || 50; 
         const fee = parseFloat(loan.serviceFee) || 0;
         const interestProfit = interestPayments.reduce((sum, r) => sum + r.amount, 0);
@@ -1202,11 +1191,9 @@
         const my理论Share = Math.round(totalGrossProfit * (mySplitRatio / 100)); 
         const friend理论Share = totalGrossProfit - my理论Share; 
 
-        // C. 甲方實質風險水位 (口袋還有多少錢沒拿回來)
         const myFeeShare = fee * (mySplitRatio / 100);
         const myNetRisk = loan.originalAmount - totalRepaid - myFeeShare;
 
-        // --- 2. 利息分配建議 (對沖邏輯) ---
         const singleInterest = loan.originalAmount * (parseFloat(loan.rate) / 100);
         const bOverdrawn = fee - friend理论Share;
         let suggestA = 0, suggestB = 0;
@@ -1219,7 +1206,6 @@
             suggestB = singleInterest - suggestA;
         }
 
-        // --- 3. 動態視覺效果 ---
         let pBarColor = 'bg-red-500'; 
         if (borrowerProgress >= 100) pBarColor = 'bg-emerald-500';
         else if (borrowerProgress >= 50) pBarColor = 'bg-amber-500';
@@ -1239,7 +1225,7 @@
                 
                 <div class="flex flex-wrap gap-1.5 mt-2">
                   ${loan.hasNote ? '<span class="bg-blue-100 text-blue-700 text-[10px] px-1.5 py-0.5 rounded font-bold">🎫 本票已收</span>' : '<span class="bg-slate-100 text-slate-400 text-[10px] px-1.5 py-0.5 rounded">🎫 欠本票</span>'}
-                  ${loan.hasIdCopy ? '<span class="bg-indigo-100 text-indigo-700 text-[10px] px-1.5 py-0.5 rounded font-bold">🆔 證件已留</span>' : ''}
+                  ${loan.hasIdCopy ? '<span class="bg-indigo-100 text-indigo-700 text-[10px] px-1.5 py-0.5 rounded font-bold">🆔 證件已留</span>' : '<span class="bg-slate-100 text-slate-400 text-[10px] px-1.5 py-0.5 rounded">🆔 缺身分證</span>'}
                   ${loan.hasRemitRecord ? '<span class="bg-emerald-100 text-emerald-700 text-[10px] px-1.5 py-0.5 rounded font-bold">📱 匯款有據</span>' : '<span class="bg-red-50 text-red-400 text-[10px] px-1.5 py-0.5 rounded border border-red-100">⚠️ 缺匯款單</span>'}
                 </div>
               </div>
@@ -1309,7 +1295,7 @@
                 </div>
               </div>
 
-              <div class="flex gap-2">
+              <div class="flex gap-2 mb-3">
                 ${isOwner ? `
                   ${!isPaidOff ? `<button onclick="openModal('principal', ${loan.id})" class="flex-1 bg-emerald-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 shadow-sm transition">還本金</button>` : ''}
                   <button onclick="openModal('interest', ${loan.id})" class="flex-1 bg-amber-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-amber-600 shadow-sm transition">收利息</button>
