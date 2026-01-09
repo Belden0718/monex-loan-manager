@@ -338,7 +338,8 @@
             <p class="text-[10px] text-slate-400 mt-1">建議: 50% 以上 (目前你拿的比例)</p>
           </div>
           
-          <div class="lg:col-span-2"> <label class="block text-xs font-medium text-slate-500 mb-1">備註</label>
+          <div class="lg:col-span-1"> 
+            <label class="block text-xs font-medium text-slate-500 mb-1">備註</label>
             <input type="text" id="notes" placeholder="備註資訊（選填）" class="w-full border rounded-lg p-2.5 outline-none">
           </div>
           
@@ -487,6 +488,14 @@
             <option value="6">每週六</option>
             <option value="0">每週日</option>
           </select>
+        </div>
+        <div>
+          <label class="text-xs text-slate-500">手續費 (開辦費)</label>
+          <input type="number" id="editServiceFee" class="w-full border rounded p-2 outline-none">
+        </div>
+        <div>
+          <label class="text-xs text-slate-500">金主分潤比例 (%)</label>
+          <input type="number" id="editInvestorSplit" class="w-full border rounded p-2 outline-none">
         </div>
         <div class="col-span-2">
           <label class="text-xs text-slate-500">備註</label>
@@ -926,8 +935,8 @@ const newLoan = {
       document.getElementById('interestType').value = '月';
       document.getElementById('payDayDate').value = '';
       document.getElementById('roundingType').value = 'normal';
-      document.getElementById('serviceFee').value = ''; 
-      document.getElementById('investorSplit').value = '50'; // 恢復成預設的 50%
+      document.getElementById('serviceFee').value = ''; // 手續費清空，因為每筆不同
+      document.getElementById('investorSplit').value = '50'; // 分潤比例恢復預設 50，方便下次微調
       document.getElementById('notes').value = '';
       togglePayDayInput('new');
     }
@@ -948,6 +957,11 @@ const newLoan = {
       document.getElementById('editRate').value = loan.rate;
       document.getElementById('editRateType').value = loan.rateType;
       document.getElementById('editRoundingType').value = loan.roundingType || 'normal';
+      
+      // 💡 新增：讀取並填入手續費與分潤比例
+      document.getElementById('editServiceFee').value = loan.serviceFee || 0;
+      document.getElementById('editInvestorSplit').value = loan.investorSplit || 50;
+
       document.getElementById('editNotes').value = loan.notes || '';
       togglePayDayInput('edit');
       if (loan.rateType === '月') {
@@ -969,9 +983,17 @@ const newLoan = {
       loan.rate = document.getElementById('editRate').value;
       loan.rateType = document.getElementById('editRateType').value;
       loan.roundingType = document.getElementById('editRoundingType').value;
+      
+      // 💡 新增：將修改後的手續費與分潤比例存入物件
+      loan.serviceFee = parseFloat(document.getElementById('editServiceFee').value) || 0;
+      loan.investorSplit = parseFloat(document.getElementById('editInvestorSplit').value) || 50;
+      // 同步更新 partnerSplit (給系統備用計算)
+      loan.partnerSplit = 100 - loan.investorSplit;
+
       loan.notes = document.getElementById('editNotes').value;
       loan.payDay = loan.rateType === '月' ? document.getElementById('editPayDayDate').value : document.getElementById('editPayDayWeek').value;
       
+      // 寫回雲端資料庫
       loansRef.child(id).set(loan);
       document.getElementById('editModal').close();
     }
