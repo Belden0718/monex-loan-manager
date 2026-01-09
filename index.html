@@ -330,20 +330,21 @@
           </div>
         
           <div>
-            <label class="block text-xs font-medium text-slate-500 mb-1">手續費 (開辦費)</label>
-            <input type="number" id="serviceFee" placeholder="朋友先抽走的錢" class="w-full border rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500">
+            <label class="block text-xs font-medium text-slate-500 mb-1">手續費 (開辦費) 💰</label>
+            <input type="number" id="serviceFee" placeholder="朋友先抽走的金額" min="0" step="100" class="w-full border rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500">
           </div>
           <div>
-            <label class="block text-xs font-medium text-slate-500 mb-1">我的分潤比例 (%)</label>
-            <input type="number" id="investorSplit" value="50" class="w-full border rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500">
+            <label class="block text-xs font-medium text-slate-500 mb-1">我的分潤比例 (%) 📊</label>
+            <input type="number" id="investorSplit" value="50" min="0" max="100" step="1" class="w-full border rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500">
             <p class="text-[10px] text-slate-400 mt-1">目前你領取的佔比</p>
           </div>
-          <div>
+          <div class="lg:col-span-3">
             <label class="block text-xs font-medium text-slate-500 mb-1">備註</label>
-            <input type="text" id="notes" placeholder="備註資訊" class="w-full border rounded-lg p-2.5 outline-none">
+            <input type="text" id="notes" placeholder="備註資訊（選填）" class="w-full border rounded-lg p-2.5 outline-none">
           </div>
         
-          <div class="flex items-end lg:col-span-3"> <button onclick="addLoan()" class="w-full bg-indigo-600 text-white font-bold py-2.5 px-4 rounded-lg hover:bg-indigo-700 transition shadow-lg shadow-indigo-200">
+          <div class="lg:col-span-3">
+            <button onclick="addLoan()" class="w-full bg-indigo-600 text-white font-bold py-2.5 px-4 rounded-lg hover:bg-indigo-700 transition shadow-lg shadow-indigo-200">
               建立合約
             </button>
           </div>
