@@ -1073,6 +1073,7 @@
       const titleEl = document.getElementById('modalTitle');
       const amountEl = document.getElementById('modalAmount');
       const hintEl = document.getElementById('autoCalcHint');
+
       if (type === 'principal') {
         titleEl.textContent = `💰 還本金 (${loan.borrower})`;
         titleEl.className = "text-xl font-bold text-emerald-600 mb-4";
@@ -1081,9 +1082,16 @@
       } else {
         titleEl.textContent = `📈 收利息 (${loan.borrower})`;
         titleEl.className = "text-xl font-bold text-amber-600 mb-4";
+
         if(loan.originalAmount && loan.rate) {
-          let calcInterest = loan.originalAmount * (loan.rate / 100);
+          // --- 💡 關鍵修正：計算剩餘本金 ---
+          const totalRepaid = (loan.repayments || []).reduce((sum, r) => sum + r.amount, 0);
+          const remainingPrincipal = loan.originalAmount - totalRepaid;
           
+          // 根據「剩餘本金」計算建議利息
+          let calcInterest = remainingPrincipal * (loan.rate / 100);
+          
+          // 處理取整邏輯
           if (loan.roundingType === 'round') {
             calcInterest = Math.ceil(calcInterest / 100) * 100;
           } else {
@@ -1091,6 +1099,9 @@
           }
           
           amountEl.value = calcInterest;
+          
+          // 提示文字優化：讓甲方知道這是按剩餘餘額算的
+          hintEl.textContent = `💡 已自動填入：剩餘本金 $${remainingPrincipal.toLocaleString()} × ${loan.rate}%`;
           hintEl.classList.remove('hidden');
         } else {
           amountEl.value = '';
@@ -1099,7 +1110,7 @@
       }
       document.getElementById('actionModal').showModal();
     }
-
+    
     function confirmTransaction() {
       const id = parseInt(document.getElementById('modalLoanId').value);
       const type = document.getElementById('modalType').value;
