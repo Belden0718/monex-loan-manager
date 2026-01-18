@@ -478,14 +478,47 @@
             <label class="text-xs text-slate-500">借款日期</label>
             <input type="date" id="editLoanDate" class="w-full border rounded p-2">
           </div>
+          
           <div>
             <label class="text-xs text-slate-500">利率 (%)</label>
             <input type="number" id="editRate" class="w-full border rounded p-2">
           </div>
           <div>
-            <label class="text-xs text-slate-500">分潤 (%)</label>
+            <label class="text-xs text-slate-500">週期</label>
+            <select id="editRateType" onchange="togglePayDayInput('edit')" class="w-full border rounded p-2 bg-white">
+              <option value="月">月息</option>
+              <option value="週">週息</option>
+            </select>
+          </div>
+
+          <div class="col-span-2">
+            <label class="text-xs text-slate-500">約定繳息時間</label>
+            <div id="monthlyInput_edit">
+              <input type="number" id="editPayDayDate" placeholder="每月幾號 (1-31)" min="1" max="31" class="w-full border rounded p-2">
+            </div>
+            <select id="editPayDayWeek" class="hidden w-full border rounded p-2 bg-white">
+              <option value="1">每週一</option>
+              <option value="2">每週二</option>
+              <option value="3">每週三</option>
+              <option value="4">每週四</option>
+              <option value="5">每週五</option>
+              <option value="6">每週六</option>
+              <option value="0">每週日</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="text-xs text-slate-500">繳息機制</label>
+            <select id="editRoundingType" class="w-full border rounded p-2 bg-white">
+              <option value="normal">正常制</option>
+              <option value="round">百位制</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs text-slate-500">甲方分潤 (%)</label>
             <input type="number" id="editInvestorSplit" class="w-full border rounded p-2">
           </div>
+
           <div class="col-span-2">
             <label class="text-xs text-slate-500">手續費</label>
             <input type="number" id="editServiceFee" class="w-full border rounded p-2">
@@ -1033,7 +1066,19 @@
       document.getElementById('editServiceFee').value = loan.serviceFee || 0;
       document.getElementById('editNotes').value = loan.notes || '';
       
-      // 💡 [新增] 載入法律文件狀態
+      // 💡 [修正] 載入週期與繳息日期
+      document.getElementById('editRateType').value = loan.rateType || '月';
+      document.getElementById('editRoundingType').value = loan.roundingType || 'normal';
+      
+      togglePayDayInput('edit'); // 根據週期切換顯示月選單或週選單
+      
+      if (loan.rateType === '週') {
+        document.getElementById('editPayDayWeek').value = loan.payDay;
+      } else {
+        document.getElementById('editPayDayDate').value = loan.payDay;
+      }
+
+      // 載入法律文件狀態
       document.getElementById('editHasNote').checked = loan.hasNote || false;
       document.getElementById('editHasIdCopy').checked = loan.hasIdCopy || false;
       document.getElementById('editHasRemitRecord').checked = loan.hasRemitRecord || false;
@@ -1055,14 +1100,25 @@
       loan.serviceFee = parseFloat(document.getElementById('editServiceFee').value) || 0;
       loan.notes = document.getElementById('editNotes').value;
 
-      // 💡 [新增] 讀取並儲存法律文件狀態
+      // 💡 [修正] 讀取並儲存週期與繳息日
+      loan.rateType = document.getElementById('editRateType').value;
+      loan.roundingType = document.getElementById('editRoundingType').value;
+      loan.payDay = loan.rateType === '月' 
+        ? document.getElementById('editPayDayDate').value 
+        : document.getElementById('editPayDayWeek').value;
+
+      // 儲存法律文件狀態
       loan.hasNote = document.getElementById('editHasNote').checked;
       loan.hasIdCopy = document.getElementById('editHasIdCopy').checked;
       loan.hasRemitRecord = document.getElementById('editHasRemitRecord').checked;
       
-      // 寫回雲端
-      loansRef.child(id).set(loan);
-      document.getElementById('editModal').close();
+      // 寫回 Firebase
+      loansRef.child(id).set(loan)
+        .then(() => {
+          document.getElementById('editModal').close();
+          console.log("✅ 修改已存檔");
+        })
+        .catch(err => alert("存檔失敗：" + err.message));
     }
 
     function openModal(type, id) {
@@ -1233,18 +1289,18 @@
                   ${loan.borrower}
                   ${isPaidOff ? '<span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded-full font-bold">已結清</span>' : ''}
                 </h3>
-                <div class="text-xs text-slate-400 mt-1">借款日: ${loan.loanDate}</div>
+                <div class="flex flex-col gap-1 mt-1">
+                  <div class="text-[11px] text-slate-400">📅 借款日: ${loan.loanDate}</div>
+                  <div class="text-[11px] text-indigo-500 font-bold">
+                    📆 約定繳息: ${loan.rateType === '月' ? `每月 ${loan.payDay} 號` : `每週 ${getWeekName(loan.payDay)}`}
+                    (${loan.roundingType === 'round' ? '百位制' : '正常制'})
+                  </div>
+                </div>
                 
                 <div class="flex flex-wrap gap-1.5 mt-2">
-                  ${loan.hasNote ? 
-                    '<span class="bg-blue-100 text-blue-700 text-[10px] px-1.5 py-0.5 rounded font-bold">🎫 本票已收</span>' : 
-                    '<span class="bg-slate-100 text-slate-400 text-[10px] px-1.5 py-0.5 rounded">🎫 欠本票</span>'}
-                  ${loan.hasIdCopy ? 
-                    '<span class="bg-indigo-100 text-indigo-700 text-[10px] px-1.5 py-0.5 rounded font-bold">🆔 證件已留</span>' : 
-                    '<span class="bg-slate-100 text-slate-400 text-[10px] px-1.5 py-0.5 rounded">🆔 缺身分證</span>'}
-                  ${loan.hasRemitRecord ? 
-                    '<span class="bg-emerald-100 text-emerald-700 text-[10px] px-1.5 py-0.5 rounded font-bold">📱 匯款有據</span>' : 
-                    '<span class="bg-red-50 text-red-400 text-[10px] px-1.5 py-0.5 rounded border border-red-100">⚠️ 缺匯款單</span>'}
+                  ${loan.hasNote ? '<span class="bg-blue-100 text-blue-700 text-[10px] px-1.5 py-0.5 rounded font-bold">🎫 本票已收</span>' : '<span class="bg-slate-100 text-slate-400 text-[10px] px-1.5 py-0.5 rounded">🎫 欠本票</span>'}
+                  ${loan.hasIdCopy ? '<span class="bg-indigo-100 text-indigo-700 text-[10px] px-1.5 py-0.5 rounded font-bold">🆔 證件已留</span>' : '<span class="bg-slate-100 text-slate-400 text-[10px] px-1.5 py-0.5 rounded">🆔 缺身分證</span>'}
+                  ${loan.hasRemitRecord ? '<span class="bg-emerald-100 text-emerald-700 text-[10px] px-1.5 py-0.5 rounded font-bold">📱 匯款有據</span>' : '<span class="bg-red-50 text-red-400 text-[10px] px-1.5 py-0.5 rounded border border-red-100">⚠️ 缺匯款單</span>'}
                 </div>
               </div>
               <div class="text-right flex flex-col items-end gap-1">
