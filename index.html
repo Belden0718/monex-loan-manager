@@ -1135,29 +1135,30 @@
         titleEl.className = "text-xl font-bold text-emerald-600 mb-4";
         amountEl.value = '';
         hintEl.classList.add('hidden');
-      } else {
+      } 
+      // 💡 [新增] 再借款邏輯
+      else if (type === 'add_principal') {
+        titleEl.textContent = `💸 再借出 (${loan.borrower})`;
+        titleEl.className = "text-xl font-bold text-red-600 mb-4";
+        amountEl.value = '';
+        hintEl.classList.add('hidden');
+      }
+      else {
         titleEl.textContent = `📈 收利息 (${loan.borrower})`;
         titleEl.className = "text-xl font-bold text-amber-600 mb-4";
 
         if(loan.originalAmount && loan.rate) {
-          // --- 💡 關鍵修正：計算剩餘本金 ---
+          // 計算包含「加借」後的剩餘本金
+          const loanAdditions = (loan.loanAdditions || []).reduce((sum, a) => sum + a.amount, 0);
           const totalRepaid = (loan.repayments || []).reduce((sum, r) => sum + r.amount, 0);
-          const remainingPrincipal = loan.originalAmount - totalRepaid;
+          const remainingPrincipal = loan.originalAmount + loanAdditions - totalRepaid;
           
-          // 根據「剩餘本金」計算建議利息
           let calcInterest = remainingPrincipal * (loan.rate / 100);
-          
-          // 處理取整邏輯
-          if (loan.roundingType === 'round') {
-            calcInterest = Math.ceil(calcInterest / 100) * 100;
-          } else {
-            calcInterest = Math.round(calcInterest);
-          }
+          if (loan.roundingType === 'round') calcInterest = Math.ceil(calcInterest / 100) * 100;
+          else calcInterest = Math.round(calcInterest);
           
           amountEl.value = calcInterest;
-          
-          // 提示文字優化：讓甲方知道這是按剩餘餘額算的
-          hintEl.textContent = `💡 已自動填入：剩餘本金 $${remainingPrincipal.toLocaleString()} × ${loan.rate}%`;
+          hintEl.textContent = `💡 已自動填入：總欠本金 $${remainingPrincipal.toLocaleString()} × ${loan.rate}%`;
           hintEl.classList.remove('hidden');
         } else {
           amountEl.value = '';
@@ -1177,12 +1178,22 @@
       const loan = loans.find(l => l.id === id);
       const record = { amount, date };
       
-      if (type === 'principal') loan.repayments.push(record);
-      else loan.interestPayments.push(record);
+      if (type === 'principal') {
+        loan.repayments = loan.repayments || [];
+        loan.repayments.push(record);
+      } else if (type === 'add_principal') {
+        // 💡 [新增] 存入加借紀錄
+        loan.loanAdditions = loan.loanAdditions || [];
+        loan.loanAdditions.push(record);
+      } else {
+        loan.interestPayments = loan.interestPayments || [];
+        loan.interestPayments.push(record);
+      }
       
       const dateSorter = (a, b) => new Date(b.date) - new Date(a.date);
-      loan.repayments.sort(dateSorter);
-      loan.interestPayments.sort(dateSorter);
+      if(loan.repayments) loan.repayments.sort(dateSorter);
+      if(loan.interestPayments) loan.interestPayments.sort(dateSorter);
+      if(loan.loanAdditions) loan.loanAdditions.sort(dateSorter);
       
       loansRef.child(id).set(loan);
       document.getElementById('actionModal').close();
@@ -1247,7 +1258,7 @@
       sortedLoans.forEach(loan => {
         const repayments = loan.repayments || [];
         const interestPayments = loan.interestPayments || [];
-        
+        const loanAdditions = (loan.loanAdditions || []).reduce((sum, a) => sum + a.amount, 0); // 💡 新增加借總額
         const totalRepaid = repayments.reduce((sum, r) => sum + r.amount, 0);
         const remaining = loan.originalAmount - totalRepaid; 
         const borrowerProgress = Math.min(100, Math.round((totalRepaid / loan.originalAmount) * 100));
@@ -1372,33 +1383,50 @@
               <div class="flex gap-2 mb-3">
                 ${isOwner ? `
                   ${!isPaidOff ? `<button onclick="openModal('principal', ${loan.id})" class="flex-1 bg-emerald-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 shadow-sm transition">還本金</button>` : ''}
+                  <button onclick="openModal('add_principal', ${loan.id})" class="flex-1 bg-rose-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-rose-600 shadow-sm transition">再借出</button>
                   <button onclick="openModal('interest', ${loan.id})" class="flex-1 bg-amber-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-amber-600 shadow-sm transition">收利息</button>
                 ` : '<div class="text-center w-full py-2 text-slate-400 text-xs italic">乙方帳號僅具備檢視權限</div>'}
               </div>
 
               <details class="group/detail mt-3">
-                <summary class="flex justify-center items-center cursor-pointer text-sm text-slate-400 hover:text-indigo-500 py-1 select-none transition-colors">
-                  <span>查看詳細交易明細</span>
-                </summary>
-                <div class="mt-2 grid grid-cols-2 gap-3 text-sm bg-slate-50 p-3 rounded-lg border border-slate-100 max-h-48 overflow-y-auto">
-                  <div>
-                    <div class="font-bold text-slate-600 mb-2 sticky top-0 bg-slate-50 border-b border-slate-200 text-xs pb-1">還本紀錄</div>
-                    ${repayments.length ? repayments.map(r => `
-                      <div class="flex justify-between text-slate-500 border-b border-slate-100 py-1 text-[11px]">
-                        <span>${r.date}</span><span class="font-medium">-${r.amount.toLocaleString()}</span>
-                      </div>
-                    `).join('') : '<div class="text-slate-300 text-[10px] py-1">暫無紀錄</div>'}
-                  </div>
-                  <div>
-                    <div class="font-bold text-slate-600 mb-2 sticky top-0 bg-slate-50 border-b border-slate-200 text-xs pb-1">獲利紀錄</div>
-                    ${interestPayments.length ? interestPayments.map(r => `
-                      <div class="flex justify-between text-amber-600 border-b border-slate-100 py-1 text-[11px]">
-                        <span>${r.date}</span><span class="font-medium">+${r.amount.toLocaleString()}</span>
-                      </div>
-                    `).join('') : '<div class="text-slate-300 text-[10px] py-1">暫無紀錄</div>'}
-                  </div>
+            <summary class="flex justify-center items-center cursor-pointer text-sm text-slate-400 hover:text-indigo-500 py-1 select-none transition-colors">
+              <span>查看詳細交易明細</span>
+            </summary>
+            <div class="mt-2 grid grid-cols-2 gap-3 text-sm bg-slate-50 p-3 rounded-lg border border-slate-100 max-h-56 overflow-y-auto">
+              
+              <div class="col-span-2 mb-2 border-b border-slate-200 pb-2">
+                <div class="font-bold text-red-600 text-[10px] mb-1 flex items-center gap-1">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4" stroke-width="2" stroke-linecap="round"/></svg>
+                  加借紀錄 (本金增加)
                 </div>
-              </details>
+                ${(loan.loanAdditions || []).length ? loan.loanAdditions.map(a => `
+                  <div class="flex justify-between text-slate-500 py-1 text-[11px]">
+                    <span>${a.date}</span>
+                    <span class="font-bold text-red-500">+$${a.amount.toLocaleString()}</span>
+                  </div>
+                `).join('') : '<div class="text-slate-300 text-[10px] py-1 italic">查無增貸紀錄</div>'}
+              </div>
+
+              <div>
+                <div class="font-bold text-slate-600 mb-2 sticky top-0 bg-slate-50 border-b border-slate-200 text-xs pb-1">還本紀錄</div>
+                ${repayments.length ? repayments.map(r => `
+                  <div class="flex justify-between text-slate-500 border-b border-slate-100 py-1 text-[11px]">
+                    <span>${r.date}</span><span class="font-medium text-emerald-600">-$${r.amount.toLocaleString()}</span>
+                  </div>
+                `).join('') : '<div class="text-slate-300 text-[10px] py-1">暫無紀錄</div>'}
+              </div>
+
+              <div>
+                <div class="font-bold text-slate-600 mb-2 sticky top-0 bg-slate-50 border-b border-slate-200 text-xs pb-1">獲利紀錄</div>
+                ${interestPayments.length ? interestPayments.map(r => `
+                  <div class="flex justify-between text-amber-600 border-b border-slate-100 py-1 text-[11px]">
+                    <span>${r.date}</span><span class="font-medium">+$${r.amount.toLocaleString()}</span>
+                  </div>
+                `).join('') : '<div class="text-slate-300 text-[10px] py-1">暫無紀錄</div>'}
+              </div>
+
+            </div>
+          </details>
             </div>
           </div>
         `;
