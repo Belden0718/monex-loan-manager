@@ -1076,6 +1076,35 @@
       }
     }
 
+    function deleteTransaction(loanId, type, index) {
+      if (!confirm('確定要刪除這筆交易紀錄嗎？\n刪除後相關餘額與總數將會自動重新計算。')) return;
+      
+      const loan = loans.find(l => l.id === loanId);
+      if (!loan) {
+        alert("找不到該筆合約");
+        return;
+      }
+      
+      // 確保陣列存在
+      loan.loanAdditions = loan.loanAdditions || [];
+      loan.repayments = loan.repayments || [];
+      loan.interestPayments = loan.interestPayments || [];
+
+      // 根據傳入的類型刪除對應索引的資料
+      if (type === 'add_principal') {
+        loan.loanAdditions.splice(index, 1);
+      } else if (type === 'principal') {
+        loan.repayments.splice(index, 1);
+      } else if (type === 'interest') {
+        loan.interestPayments.splice(index, 1);
+      }
+      
+      // 寫回 Firebase 雲端，成功後畫面會自動更新
+      loansRef.child(loanId).set(loan)
+        .then(() => console.log('✅ 交易紀錄已刪除'))
+        .catch(err => alert('刪除失敗: ' + err.message));
+    }
+
     function openEditModal(id) {
       const loan = loans.find(l => l.id === id);
       if(!loan) return;
@@ -1436,7 +1465,7 @@
                         <span>${a.date}</span>
                         <div class="flex items-center gap-2">
                           <span class="font-bold text-red-500">+$${a.amount.toLocaleString()}</span>
-                          ${isOwner ? `<button onclick="deleteTransaction(${loan.id}, 'add_principal', ${idx})" class="opacity-0 group-hover/item:opacity-100 text-slate-400 hover:text-red-600 transition-opacity">❌</button>` : ''}
+                          ${isOwner ? `<button onclick="deleteTransaction(${loan.id}, \'add_principal\', ${idx})" class="opacity-0 group-hover/item:opacity-100 text-slate-400 hover:text-red-600 transition-opacity">❌</button>` : ''}
                         </div>
                       </div>
                     `).join('') : '<div class="text-slate-300 text-[10px] py-1 italic">查無增貸紀錄</div>'}
@@ -1449,7 +1478,7 @@
                         <span>${r.date}</span>
                         <div class="flex items-center gap-1">
                           <span class="font-medium text-emerald-600">-$${r.amount.toLocaleString()}</span>
-                          ${isOwner ? `<button onclick="deleteTransaction(${loan.id}, 'principal', ${idx})" class="opacity-0 group-hover/item:opacity-100 text-slate-400 hover:text-red-600 transition-opacity">❌</button>` : ''}
+                          ${isOwner ? `<button onclick="deleteTransaction(${loan.id}, \'principal\', ${idx})" class="opacity-0 group-hover/item:opacity-100 text-slate-400 hover:text-red-600 transition-opacity">❌</button>` : ''}
                         </div>
                       </div>
                     `).join('') : '<div class="text-slate-300 text-[10px] py-1">暫無紀錄</div>'}
@@ -1462,7 +1491,7 @@
                         <span>${r.date}</span>
                         <div class="flex items-center gap-1">
                           <span class="font-medium">+$${r.amount.toLocaleString()}</span>
-                          ${isOwner ? `<button onclick="deleteTransaction(${loan.id}, 'interest', ${idx})" class="opacity-0 group-hover/item:opacity-100 text-slate-400 hover:text-red-600 transition-opacity">❌</button>` : ''}
+                          ${isOwner ? `<button onclick="deleteTransaction(${loan.id}, \'interest\', ${idx})" class="opacity-0 group-hover/item:opacity-100 text-slate-400 hover:text-red-600 transition-opacity">❌</button>` : ''}
                         </div>
                       </div>
                     `).join('') : '<div class="text-slate-300 text-[10px] py-1">暫無紀錄</div>'}
