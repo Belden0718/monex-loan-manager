@@ -1221,12 +1221,14 @@
       loans.forEach(loan => {
           const totalRepaid = (loan.repayments || []).reduce((sum, r) => sum + r.amount, 0);
           const interestProfit = (loan.interestPayments || []).reduce((sum, r) => sum + r.amount, 0);
+          const loanAdditions = (loan.loanAdditions || []).reduce((sum, a) => sum + a.amount, 0); // 💡 抓取加借
           const fee = parseFloat(loan.serviceFee) || 0;
           const splitRatio = (parseFloat(loan.investorSplit) || 50) / 100;
 
-          globalRemaining += (loan.originalAmount - totalRepaid);
+          // 💡 把加借的錢也算進流通本金與風險成本中
+          globalRemaining += (loan.originalAmount + loanAdditions - totalRepaid);
           const myFeeShare = fee * splitRatio;
-          globalRiskAmount += (loan.originalAmount - (totalRepaid + myFeeShare));
+          globalRiskAmount += (loan.originalAmount + loanAdditions - (totalRepaid + myFeeShare));
           globalProfit += (interestProfit * splitRatio) + myFeeShare;
       });
 
